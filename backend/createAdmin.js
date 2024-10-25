@@ -1,8 +1,12 @@
-const db = require('./config/firebase'); // Firestore setup
+const { db } = require('./config/firebase'); // Update this to the correct path
 const { getAuth } = require('firebase-admin/auth');
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-admin.initializeApp();
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
 exports.addAdminRole = functions.https.onCall((data, context) => {
   // Check that the request is made by an authenticated user
   if (context.auth.token.admin !== true) {
@@ -23,9 +27,10 @@ exports.addAdminRole = functions.https.onCall((data, context) => {
       return { error: error.message };
     });
 });
+
 // Function to create a default admin user
 const createDefaultAdmin = async () => {
-  const email = 'admin@example.com';
+  const email = 'admin@gmail.com';
   const password = '1234Admin';
 
   try {
@@ -61,5 +66,3 @@ createDefaultAdmin()
     console.error('Error:', error);
     process.exit(1);
   });
-
-

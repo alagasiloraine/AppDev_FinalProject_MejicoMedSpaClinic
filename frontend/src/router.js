@@ -6,7 +6,13 @@ import EmailVerification from './components/EmailVerification.vue';
 import Login from './components/Login.vue';
 import LandingPage from './components/LandingPage.vue';
 import AdminDashboard from './components/AdminDashboard.vue';
-
+import Users from './components/Users.vue'
+import Patients from './components/Patients.vue'
+import Appointments from './components/Appointments.vue'
+import Analytics from './components/Analytics.vue'
+import Settings from './components/Settings.vue'
+import ScheduleApp from './components/ScheduleApp.vue';
+import Homepage from './components/Homepage.vue';  // Ensure this is the correct homepage component
 const routes = [
   {
     path: '/register',
@@ -35,6 +41,31 @@ const routes = [
     component: AdminDashboard,
     meta: { requiresAuth: true, requiresAdmin: true },
   },
+  {
+    path: '/users',
+    component: Users,
+  },
+  {
+    path: '/patients',
+    component: Patients,
+  },
+  {
+    path: '/appointments',
+    component: Appointments,
+  },
+  {
+    path: '/analytics',
+    component: Analytics,
+  },
+  {
+    path: '/settings',
+    component: Settings,
+  },
+  { path: '/ScheduleApp',
+    component: ScheduleApp 
+  },
+  { path: '/home', 
+    component: Homepage },
   {
     path: '/',
     redirect: '/landing',

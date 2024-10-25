@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
@@ -28,6 +29,10 @@ export const login = async (email, password) => {
     console.error('Error during login:', error);
     throw error;
   }
+};
+
+export const resetPassword = (email) => {
+  return sendPasswordResetEmail(auth, email);
 };
 
 export const logout = async () => {
