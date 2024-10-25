@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-import './tailwind.css';
+import './assets/tailwind.css'
 import { auth } from './firebase'; // Make sure this import is present
 
 const app = createApp(App);
