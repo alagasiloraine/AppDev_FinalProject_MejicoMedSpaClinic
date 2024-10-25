@@ -1,39 +1,17 @@
+const db = require('./config/firebase'); // Firestore setup
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const port = process.env.PORT || 3000;
+const adminRoutes = require('./routes/adminRoutes'); // Make sure the path is correct
+const authRoutes = require('./routes/authRoutes');
 
-app.use(cors());
+app.use(cors()); // Apply CORS middleware
+app.use(express.json()); // Middleware to parse JSON
 
-// Parse JSON bodies
-app.use(express.json());
+// Mount routes
+app.use('/api/admin', adminRoutes);  // Note the /api/admin path
+app.use('/api/auth', authRoutes);
 
-// Sample route
-app.get('/api/health', (req, res) => {
-  console.log('Health check requested');
-  res.json({ status: 'OK', message: 'Mejico Clinic API is running' });
-});
-
-// Login route
-app.post('/api/login', (req, res) => {
-  console.log('Login request received:', req.body);
-  const { email, uid } = req.body;
-  // Here you would typically verify the user's token with Firebase
-  // and perform any necessary operations in your database
-  console.log(`User logged in: ${email}`);
-  res.json({ message: 'Login successful', user: { email, uid } });
-});
-
-// Register route
-app.post('/api/register', (req, res) => {
-  console.log('Registration request received:', req.body);
-  const { email, uid } = req.body;
-  // Here you would typically store the new user in your database
-  console.log(`New user registered: ${email}`);
-  res.json({ message: 'Registration successful', user: { email, uid } });
-});
-
-// Start the server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
 });
