@@ -5,6 +5,7 @@ import Register from './components/Register.vue';
 import PatientList from './components/PatientList.vue';
 import EmailVerification from './components/EmailVerification.vue';
 import ScheduleApp from './components/ScheduleApp.vue';
+
 const routes = [
   { path: '/', component: Landing },
   { path: '/login', component: Login },
