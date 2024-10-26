@@ -7,6 +7,7 @@
           <li v-for="link in navLinks" :key="link">
             <a href="#" @click.prevent="activePage = link" :class="{ active: activePage === link }">{{ link }}</a>
           </li>
+          <button @click="logout" class="nav-btn">Logout</button>
         </ul>
       </nav>
     </header>
@@ -16,6 +17,7 @@
         <h2>Welcome to Our Website</h2>
         <p>Discover amazing content and services</p>
         <button class="cta-button" @click="showModal = true">Get Started</button>
+        <router-link to="/schedule-app" class="nav-btn">Book an Appointment</router-link>          
       </section>
 
       <section class="features">
@@ -43,6 +45,21 @@
 
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase';
+
+const router = useRouter();
+
+const logout = async () => {
+  try {
+    await signOut(auth);
+    console.log('User logged out');
+    router.push('/landing'); // Redirect to login page after logout
+  } catch (error) {
+    console.error('Error logging out:', error);
+  }
+};
 
 const navLinks = ['Home', 'About', 'Services', 'Contact'];
 const activePage = ref('Home');
@@ -54,7 +71,6 @@ const features = [
   { title: 'Feature 3', description: 'Unbelievable feature that will blow your mind.', color: '#45B7D1' },
 ];
 </script>
-
 <style scoped>
 .homepage {
   font-family: Arial, sans-serif;

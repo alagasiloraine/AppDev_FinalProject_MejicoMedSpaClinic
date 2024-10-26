@@ -36,6 +36,7 @@
     { path: '/users', name: 'Users' },
     { path: '/patients', name: 'Patients' },
     { path: '/appointments', name: 'Appointments' },
+    { path: '/calendar', name: 'Calendar' },
     { path: '/analytics', name: 'Analytics' },
     { path: '/settings', name: 'Settings' },
   ];

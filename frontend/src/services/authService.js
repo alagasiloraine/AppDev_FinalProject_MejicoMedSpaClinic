@@ -5,65 +5,55 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-export const register = async (email, password) => {
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(userCredential.user);
-    await createUserDocument(userCredential.user);
-    return userCredential.user;
-  } catch (error) {
-    console.error('Error during registration:', error);
-    throw error;
-  }
+// Register a new user and create Firestore document
+export const register = async (email, password, firstName, lastName) => {
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  await sendEmailVerification(userCredential.user);
+  await createUserDocument(userCredential.user, { firstName, lastName });
+  return userCredential.user;
 };
 
+// Log in the user with email and password
 export const login = async (email, password) => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (error) {
-    console.error('Error during login:', error);
-    throw error;
-  }
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  return userCredential.user;
 };
 
-export const resetPassword = (email) => {
-  return sendPasswordResetEmail(auth, email);
-};
+// Send a password reset email
+export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
-export const logout = async () => {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    console.error('Error during logout:', error);
-    throw error;
-  }
-};
+// Log out the user
+export const logout = async () => await signOut(auth);
 
+// Check the currently logged-in user
 export const getCurrentUser = () => {
   return new Promise((resolve, reject) => {
-    const unsubscribe = onAuthStateChanged(auth, 
-      user => {
-        unsubscribe();
-        resolve(user);
-      }, 
-      error => {
-        unsubscribe();
-        reject(error);
-      }
-    );
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    }, reject);
   });
 };
 
+// Check if the current user is an admin
+export const isAdmin = async () => {
+  const user = auth.currentUser;
+  if (!user) return false;
+
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  return userSnap.exists() && userSnap.data().role === 'admin';
+};
 export const resendEmailVerification = async () => {
   const user = auth.currentUser;
   if (user) {
     try {
       await sendEmailVerification(user);
+      console.log('Verification email sent successfully.');
     } catch (error) {
       console.error('Error resending email verification:', error);
       throw error;
@@ -73,47 +63,18 @@ export const resendEmailVerification = async () => {
   }
 };
 
-export const isAdmin = async () => {
-  try {
-    const user = auth.currentUser;
-    if (!user) return false;
-
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      return userData.role === 'admin';
-    } else {
-      console.error('User document does not exist in Firestore');
-      return false;
-    }
-  } catch (error) {
-    console.error('Error checking admin status:', error);
-    return false;
-  }
-};
-
+// Create a user document in Firestore
 export const createUserDocument = async (user, additionalData = {}) => {
-  if (!user) return;
-
   const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
 
-  try {
-    const userSnap = await getDoc(userRef);
-
-    if (!userSnap.exists()) {
-      const userData = {
-        email: user.email,
-        role: 'user', // Default role
-        createdAt: new Date(),
-        ...additionalData
-      };
-
-      await setDoc(userRef, userData);
-    }
-  } catch (error) {
-    console.error('Error creating user document:', error);
-    throw error;
+  if (!userSnap.exists()) {
+    const userData = {
+      email: user.email,
+      role: 'user',
+      createdAt: new Date(),
+      ...additionalData,
+    };
+    await setDoc(userRef, userData);
   }
 };

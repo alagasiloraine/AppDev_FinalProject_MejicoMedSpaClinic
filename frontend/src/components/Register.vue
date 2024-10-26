@@ -9,6 +9,18 @@
       <form class="mt-8 space-y-6" @submit.prevent="handleRegister">
         <div class="rounded-md shadow-sm -space-y-px">
           <div>
+            <label for="first-name" class="sr-only">First Name</label>
+            <input id="first-name" name="first-name" type="text" required
+                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                   placeholder="First Name" v-model="firstName">
+          </div>
+          <div>
+            <label for="last-name" class="sr-only">Last Name</label>
+            <input id="last-name" name="last-name" type="text" required
+                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                   placeholder="Last Name" v-model="lastName">
+          </div>
+          <div>
             <label for="email-address" class="sr-only">Email address</label>
             <input id="email-address" name="email" type="email" autocomplete="email" required
                    class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
@@ -28,6 +40,11 @@
             Register
           </button>
         </div>
+
+        <!-- Error message display -->
+        <div v-if="error" class="text-red-600 text-center">
+          {{ error }}
+        </div>
       </form>
     </div>
   </div>
@@ -42,21 +59,28 @@ export default {
   setup() {
     const email = ref('');
     const password = ref('');
+    const firstName = ref('');
+    const lastName = ref('');
+    const error = ref(null); // To hold error messages
     const router = useRouter();
 
     const handleRegister = async () => {
+      error.value = null; // Reset error message
       try {
-        await register(email.value, password.value);
+        await register(email.value, password.value, firstName.value, lastName.value);
         router.push('/login');
-      } catch (error) {
-        console.error('Registration error:', error);
-        // Handle error (e.g., show error message to user)
+      } catch (registrationError) {
+        error.value = registrationError.message; // Set error message
+        console.error('Registration error:', registrationError);
       }
     };
 
     return {
       email,
       password,
+      firstName,
+      lastName,
+      error,
       handleRegister,
     };
   },

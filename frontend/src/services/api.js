@@ -1,58 +1,57 @@
 import axios from 'axios';
+import { auth } from '../firebase'; // Ensure Firebase is imported
 
 // Base URL for the API
-const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3000/api';
+const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:5000/api';
 
-// Create an axios instance with the base URL and default headers
+// Create an Axios instance
 const apiService = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // Set a timeout for requests
+  timeout: 10000, // Request timeout
 });
 
-// Request interceptor
+// Request interceptor to attach Firebase token
 apiService.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`; // Attach token if available
+  async (config) => {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken(); // Get Firebase token
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error); // Handle request errors
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor
+// Response interceptor to handle errors
 apiService.interceptors.response.use(
-  (response) => response, // Pass through the response if it's successful
+  (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
       console.error('Unauthorized access, redirecting to login');
-      // Implement redirect logic here if needed
       // Example: router.push('/login');
     }
-    return Promise.reject(error); // Handle response errors
+    return Promise.reject(error);
   }
 );
 
-// API function to login a user
+// API function to login a user (call your backend API)
 export const login = (userData) => apiService.post('/auth/login', userData);
 
-// API function to register a new user
+// API function to register a new user (backend registration)
 export const register = (userData) => apiService.post('/auth/register', userData);
 
-// API function to log out a user
-export const logout = () => {
-  localStorage.removeItem('token'); // Clear the token from local storage
-  return apiService.post('/auth/logout'); // Call logout endpoint
+// Logout function to clear Firebase and local storage
+export const logout = async () => {
+  await auth.signOut(); // Firebase sign-out
+  localStorage.removeItem('token'); // Clear local storage token if needed
+  return apiService.post('/auth/logout');
 };
 
-// API function to get protected data
+// API function to access protected route
 export const getProtectedData = () => apiService.get('/protected-route');
 
-// Export the axios instance for use in other files
 export default apiService;

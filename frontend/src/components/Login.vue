@@ -71,7 +71,7 @@
 <script>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { login, isAdmin,resetPassword  } from '../services/authService';
+import { login, isAdmin, resetPassword } from '../services/authService';
 import { Mail, Lock } from 'lucide-vue-next';
 
 export default {
@@ -103,7 +103,6 @@ export default {
         displayPopup('Invalid email or password. Please try again.', true);
       }
     };
-
     const handleResetPassword = async () => {
       try {
         if (!email.value) {
