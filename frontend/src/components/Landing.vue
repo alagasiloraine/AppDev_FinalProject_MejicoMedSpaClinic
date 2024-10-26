@@ -17,7 +17,6 @@
         <div class="welcome-content">
           <div class="welcome-text">
             <div class="welcome-text">
-                <h3>Your Partner in Health & Beauty</h3>
                 <h1>Expert Care for <span>Radiant Skin</span> and Lasting Wellness</h1>
                 <p>Mejico MD Medical Spa Clinic offers a blend of advanced dermatological 
                   treatments and personalized skin care services designed to bring out your natural beauty. 
@@ -32,37 +31,30 @@
         </div>
       </section>
 
-      <section class="services-section">
-        <h2>Our Services</h2>
-        <div class="services-grid">
-          <div class="service-card" v-for="(service, index) in services" :key="index">
-            <div class="service-icon">{{ service.icon }}</div>
-            <h3>{{ service.title }}</h3>
-            <p>{{ service.description }}</p>
-          </div>
-        </div>
-      </section>
+      <Carousel />
+
+      <LandingAbout />
     </main>
 
-    <footer>
-      <p>&copy; 2023 Mejico Medical Spa. All rights reserved.</p>
-    </footer>
+      <FooterComponent />
   </div>
 </template>
 
 <script>
 import { ref, onMounted } from 'vue';
-import { checkHealth } from '../services/api';
+import FooterComponent from './Footer.vue';
+import Carousel from './Carousel.vue'; // Import the Carousel component
+import LandingAbout from './LandingAbout.vue'; // Import the Carousel component
 
 export default {
   name: 'LandingPage',
+  components: {
+    FooterComponent,
+    Carousel, 
+    LandingAbout,
+  },
   setup() {
     const apiStatus = ref('');
-    const services = ref([
-      { icon: '💆', title: 'Facial Treatments', description: 'Rejuvenate your skin with our professional facial treatments.' },
-      { icon: '💆‍♂️', title: 'Massage Therapy', description: 'Relax your body and mind with our therapeutic massages.' },
-      { icon: '✨', title: 'Laser Hair Removal', description: 'Enjoy smooth, hair-free skin with our advanced laser technology.' }
-    ]);
 
     onMounted(async () => {
       try {
@@ -74,7 +66,7 @@ export default {
       }
     });
 
-    return { apiStatus, services };
+    return { apiStatus };
   }
 };
 </script>
@@ -97,7 +89,7 @@ header {
   justify-content: space-between;
   align-items: center;
   background-color: rgba(255, 255, 255);
-  padding: 15px 40px;
+  padding: 15px 30px;
   position: fixed;
   top: 0;
   left: 0;
@@ -154,14 +146,13 @@ main {
 .welcome-section {
   position: relative;
   height: calc(100vh - 100px);
-  background-image: url('/src/images/mejicobgimage.jpg');
+  background-image: url('/src/images/MEJICO-bg-2.png');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-top: -10px;
+  justify-content: center; 
 }
 
 .blur-background {
@@ -170,7 +161,7 @@ main {
   left: 0;
   width: 100%;
   height: 100%;
-  backdrop-filter: blur(13px);
+  backdrop-filter: blur(10px);
   background: rgba(0, 0, 0, 0.5); 
   z-index: 0;
 }
@@ -181,11 +172,12 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 50px;
+  padding: 30px;
   border-radius: 5px;
   width: 100%;
   max-width: 1200px;
   margin: 0 auto; 
+  margin-left: 10px;
 }
 
 .welcome-logo {
@@ -195,9 +187,20 @@ main {
   align-items: center;
 }
 
+/* Subtle Forward-Backward Animation */
+@keyframes slowPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
 .welcome-logo img {
-  max-width: 90%;
+  max-width: 100%;
   height: auto;
+  animation: slowPulse 4s ease-in-out infinite;
 }
 
 .welcome-text {
@@ -206,12 +209,12 @@ main {
   padding-left: 50px;
 }
 
-.welcome-text h3 {
+/* .welcome-text h3 {
   font-size: 24px;
   color: #fff;
   font-weight: 500;
   margin-bottom: 15px;
-}
+} */
 
 .welcome-text h1 {
   margin-top: -10px;
@@ -276,7 +279,7 @@ main {
 }
 
 .cta-button:hover {
-  background-color: #2C3E50;
+  background-color: #6658ac;
   transform: scale(1.05);
 }
 
@@ -327,19 +330,6 @@ main {
 .service-card p {
   font-size: 16px;
   color: #666;
-}
-
-footer {
-  text-align: center;
-  padding: 30px 0;
-  background-color: #2C3E50;
-  color: #fff;
-  margin-bottom: -10px;
-}
-
-footer p {
-  margin: 0;
-  font-size: 14px;
 }
 
 @media (max-width: 768px) {

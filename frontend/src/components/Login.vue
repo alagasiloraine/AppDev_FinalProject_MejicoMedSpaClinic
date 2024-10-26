@@ -1,5 +1,8 @@
 <template>
   <div class="login-container">
+    <button class="exit-button" @click="goToLandingPage">
+      <ArrowLeft class="exit-icon" /> <!-- Icon component for the exit button -->
+    </button>
     <div class="login-box">
       <div class="logo-header">
         <div class="logo-overlay"></div>
@@ -9,7 +12,7 @@
       </div>
       <div class="login-content">
         <h2 class="login-title">Login</h2>
-
+        
         <form @submit.prevent="login" class="login-form">
           <div class="form-group">
             <label for="email" class="form-label">Email</label>
@@ -58,7 +61,7 @@
           <p>Don't have an account?
             <router-link to="/register" class="signup-link">Sign up</router-link>
           </p>
-          <!-- Pop-up Notification -->
+
           <transition name="fade">
             <div v-if="showPopup" class="popup-message" :class="{ error: error }">
               {{ message }}
@@ -75,15 +78,15 @@
 </template>
 
 <script>
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import { loginUser } from '../services/api';
-import { Mail, Lock } from 'lucide-vue-next';
+import { Mail, Lock, ArrowLeft } from 'lucide-vue-next'; // Import the exit icon
 
 export default {
-  components: { Mail, Lock },
+  components: { Mail, Lock, ArrowLeft },
   setup() {
     const email = ref('');
     const password = ref('');
@@ -92,13 +95,13 @@ export default {
     const showPopup = ref(false);
     const router = useRouter();
 
-    const displayPopup = (msg, isError = false) => {
+    const displayPopup = (msg, isError = false, duration = 3000) => {
       message.value = msg;
       error.value = isError;
       showPopup.value = true;
       setTimeout(() => {
         showPopup.value = false;
-      }, 3000); // Hide pop-up after 3 seconds
+      }, duration); // Hide pop-up after the specified duration
     };
 
     const login = async () => {
@@ -115,7 +118,14 @@ export default {
 
         await loginUser({ email: user.email, uid: user.uid });
 
-        router.push('/home');
+        // Show "Logging in..." message and delay for 5 seconds
+        displayPopup('Please wait. Logging in...', false, 3000);
+
+        // Wait for 5 seconds before navigating
+        setTimeout(() => {
+          router.push('/home');
+        }, 5000);
+
       } catch (err) {
         console.error('Login error:', err);
         if (err.code === 'auth/user-not-found') {
@@ -147,7 +157,11 @@ export default {
       }
     };
 
-    return { email, password, login, resetPassword, message, error, showPopup };
+    const goToLandingPage = () => {
+      router.push('/');
+    };
+
+    return { email, password, login, resetPassword, message, error, showPopup, goToLandingPage };
   },
 };
 </script>
@@ -178,6 +192,48 @@ export default {
   background-position: center;
   filter: blur(3px); 
   z-index: -1;
+}
+
+.exit-button {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background-color: #4a399c;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: heartbeat 1.5s infinite;
+}
+
+.exit-icon {
+  height: 20px;
+  width: 20px;
+  color: #ffffff;
+}
+
+/* Heartbeat animation */
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.1);
+  }
+  50% {
+    transform: scale(1);
+  }
+  75% {
+    transform: scale(1.1);
+  }
+}
+
+.exit-button:hover {
+  background-color: #372a75;
 }
 
 .login-box {
@@ -357,7 +413,7 @@ export default {
   position: fixed;
   top: 20px;
   right: 20px;
-  background-color: #f0f0f0;
+  background-color: #02bea5;
   color: #333;
   padding: 10px 20px;
   border-radius: 8px;
