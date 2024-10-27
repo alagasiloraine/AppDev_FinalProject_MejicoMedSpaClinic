@@ -86,7 +86,7 @@ export default {
 }
 
 .header h2 {
-  font-size: 2rem;
+  font-size: 3rem;
   font-weight: 700;
   margin-bottom: 2rem;
   color: #382d6e;
