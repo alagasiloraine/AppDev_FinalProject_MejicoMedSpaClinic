@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const admin = require('./firebase'); 
+const { FieldValue } = require('firebase-admin').firestore;
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -70,33 +72,29 @@ async function sendVerificationEmail(email, link) {
 // Assuming you have Firestore initialized and the necessary imports
 
 app.post('/api/appointments', async (req, res) => {
-  const { service, date, time, price } = req.body; // Extract appointment data from the request body
+  const { service, date, time, price } = req.body;
 
-  // Log the received appointment data for debugging
-  console.log('Received appointment data:', req.body);
-
-  // Validate that the data is not null or undefined
   if (!service || !date || !time || !price) {
       return res.status(400).json({ error: 'All fields are required.' });
   }
 
   try {
-      // Create a new document in the "appointments" collection with an auto-generated ID
       const appointmentRef = await admin.firestore().collection('appointments').add({
-          service: service, // Field: service, Value: service
-          date: date,       // Field: date, Value: date
-          time: time,       // Field: time, Value: time
-          price: price,     // Field: price, Value: price
-          createdAt: admin.firestore.FieldValue.serverTimestamp() // Timestamp for when the appointment is created
+          service: service,
+          date: date,
+          time: time,
+          price: price,
+          createdAt: FieldValue.serverTimestamp()
       });
 
-      console.log(`Appointment scheduled with ID: ${appointmentRef.id}`); // Log the appointment ID
-      res.status(200).json({ message: 'Appointment scheduled successfully', id: appointmentRef.id }); // Response to the client
+      console.log(`Appointment scheduled with ID: ${appointmentRef.id}`);
+      res.status(200).json({ message: 'Appointment scheduled successfully', id: appointmentRef.id });
   } catch (error) {
-      console.error('Error scheduling appointment:', error); // Log the error for debugging
-      res.status(500).json({ error: 'Failed to schedule appointment', details: error.message }); // Send error response
+      console.error('Error scheduling appointment:', error);
+      res.status(500).json({ error: 'Failed to schedule appointment', details: error.message });
   }
 });
+
 
 // Get all appointments
 app.get('/api/appointments', async (req, res) => {
@@ -135,7 +133,7 @@ app.put('/api/appointments/:id', async (req, res) => {
           date: date,
           time: time,
           price: price,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
       });
 
       console.log(`Appointment with ID: ${id} updated successfully`);
@@ -145,6 +143,9 @@ app.put('/api/appointments/:id', async (req, res) => {
       res.status(500).json({ error: 'Failed to update appointment', details: error.message });
   }
 });
+
+
+
 
 
 

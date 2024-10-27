@@ -5,27 +5,38 @@
                 <img :src="blogImage" alt="mejico" class="illustration-image" />
             </div>
         </div>
-        <div class="appointment-scheduler">
-            <h1 class="title">{{ modeTitle }}</h1>
-
-            <!-- Mode selection buttons -->
-            <div class="mode-selection">
-                <button @click="setMode('book')" :class="{ active: mode === 'book' }">Book Appointment</button>
-                <button @click="setMode('view')" :class="{ active: mode === 'view' }">View Appointments</button>
-                <button @click="setMode('update')" :class="{ active: mode === 'update' }" :disabled="!selectedAppointment">Update Appointment</button>
-            </div>
-
+            <div class="appointment-scheduler">
+                <div class="header">
+                    <div class="mode-selection">
+                        <button @click="setMode('book')" :class="{ active: mode === 'book' }">Booking</button>
+                        <button @click="setMode('view')" :class="{ active: mode === 'view' }">View Appointments</button>
+                        <button @click="setMode('update')" :class="{ active: mode === 'update' }" :disabled="!selectedAppointment">Update</button>
+                    </div>
+                </div>
             <div v-if="mode === 'view'" class="appointment-cards">
                 <h2>Your Appointments</h2>
                 <div v-for="appointment in appointments" :key="appointment.id" class="appointment-card">
                     <div class="card-content">
                         <i :class="getServiceIcon(appointment.service)" class="service-icon"></i>
                         <div class="appointment-details">
-                            <p><strong>Service:</strong> {{ appointment.service }}</p>
-                            <p><strong>Date:</strong> {{ formatAppointmentDate(appointment.date) }}</p>
-                            <p><strong>Time:</strong> {{ appointment.time }}</p>
-                            <p><strong>Price:</strong> ₱{{ appointment.price.toLocaleString('en-PH') }}</p>
-                        </div>
+                        <p><strong>Service:</strong> {{ appointment.service }}</p>
+                        <p><strong>Date:</strong> {{ formatAppointmentDate(appointment.date) }}</p>
+                        <p><strong>Time:</strong> {{ appointment.time }}</p>
+                        <p><strong>Price:</strong> ₱{{ appointment.price.toLocaleString('en-PH') }}</p>
+                        <p><strong>Status:</strong> 
+                        <span :class="{
+                            'status-pending': appointment.status === 'pending',
+                            'status-approved': appointment.status === 'approved',
+                            'status-pending-cancellation': appointment.status === 'pending cancellation'
+                        }">
+                            {{ appointment.status === 'pending' ? 'Waiting for Approval' : 
+                            appointment.status === 'approved' ? 'Approved' : 
+                            appointment.status === 'pending cancellation' ? 'Pending Cancellation' : '' }}
+                        </span>
+                    </p>
+
+                    </div>
+
                     </div>
                     <div class="appointment-actions">
                         <button @click.stop="selectAppointment(appointment)" class="update-button">Update</button>
@@ -34,7 +45,6 @@
                 </div>
             </div>
 
-            <!-- Booking/Updating Form -->
             <div class="form-container" v-if="mode === 'book' || mode === 'update'">
                 <!-- Service Selection -->
                 <div class="service-selection">
@@ -52,35 +62,40 @@
                     </div>
                 </div>
 
-                <!-- Date and Time Selection -->
-                <div class="date-time-selection">
-                    <div class="form-group">
-                        <label for="date">Select Date:</label>
-                        <v-date-picker v-model="selectedDate" :min-date="new Date()" :max-date="maxDate" class="date-picker" inline />
-                    </div>
-                    <div class="form-group time-slots-wrapper">
-                        <label>Available Time Slots:</label>
-                        <div class="time-slots">
-                            <button
-                                v-for="slot in availableTimeSlots"
-                                :key="slot"
-                                @click="selectTimeSlot(slot)"
-                                :class="['time-slot', { 'selected': selectedTime === slot }]"
-                            >
-                                {{ slot }}
-                            </button>
-                        </div>
-                        <div class="summary" v-if="isFormValid">
-                            <h2>Appointment Summary</h2>
-                            <p><strong>Service:</strong> {{ selectedServiceDetails.name }}</p>
-                            <p><strong>Date:</strong> {{ formattedDate }}</p>
-                            <p><strong>Time:</strong> {{ selectedTime || 'Please select a time slot' }}</p>
-                            <p><strong>Price:</strong> ₱{{ selectedServiceDetails.price.toLocaleString('en-PH') }}</p>
-                        </div>
-                    </div>
-                </div>
+                    <div class="scheduler-container">
 
-                <!-- Book or Update Button -->
+                <!-- Date and Time Selection Container -->
+                        <div class="date-time-selection">
+                        <div class="form-group">
+                            <label for="date">Select Date:</label>
+                            <v-date-picker v-model="selectedDate" :min-date="new Date()" :max-date="maxDate" class="date-picker" inline />
+                        </div>
+   
+                        <div class="form-group time-slots-wrapper">
+                            <label>Available Time Slots:</label>
+                            <div class="time-slots">
+                                <button
+                                    v-for="slot in availableTimeSlots"
+                                    :key="slot"
+                                    @click="selectTimeSlot(slot)"
+                                    :class="['time-slot', { 'selected': selectedTime === slot, 'disabled': disableSlot(slot) }]"
+                                    :disabled="disableSlot(slot)"
+                                >
+                                    {{ slot }}
+                                </button>
+                            </div>
+
+                            <div class="summary" v-if="isFormValid">
+                                <h2>Appointment Summary</h2>
+                                <p><strong>Service:</strong> {{ selectedServiceDetails.name }}</p>
+                                <p><strong>Date:</strong> {{ formattedDate }}</p>
+                                <p><strong>Time:</strong> {{ selectedTime || 'Please select a time slot' }}</p>
+                                <p><strong>Price:</strong> ₱{{ selectedServiceDetails.price.toLocaleString('en-PH') }}</p>
+                            </div>
+                        </div>
+                    </div> 
+                </div>
+        
                 <button v-if="isFormValid" @click="mode === 'book' ? scheduleAppointment() : updateAppointment()" class="button">
                     {{ mode === 'book' ? 'Book Appointment' : 'Update Appointment' }}
                 </button>
@@ -90,202 +105,311 @@
 </template>
 
 <script setup>
-// Vue and Firebase imports
-import { ref, computed, onMounted } from 'vue';
-import { collection, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore';
-import { database } from '../firebase';
-import VDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css';
-import blogImage from '../assets/images/logo.png';
 
-// State variables
-const selectedDate = ref(null);
-const selectedTime = ref('');
-const selectedService = ref('');
-const mode = ref('book');
-const selectedAppointment = ref(null);
-const appointments = ref([]);
+    import { ref, computed, onMounted, watch } from 'vue';
+    import { collection, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore';
+    import { database } from '../firebase';
+    import VDatePicker from '@vuepic/vue-datepicker';
+    import '@vuepic/vue-datepicker/dist/main.css';
+    import blogImage from '../assets/images/logo.png';
 
-// Service data
-const services = [
-    { id: 1, name: 'Checkup', duration: 60, price: 80, icon: 'fas fa-stethoscope' },
-    { id: 2, name: 'Massage', duration: 90, price: 120, icon: 'fas fa-bottle-droplet' },
-    { id: 3, name: 'Manicure', duration: 45, price: 40, icon: 'fas fa-hand' },
-    { id: 4, name: 'Pedicure', duration: 60, price: 50, icon: 'fas fa-brush' },
-    { id: 5, name: 'Hair Removal', duration: 30, price: 60, icon: 'fas fa-user-ninja' }
-];
+    const selectedDate = ref(null);
+    const selectedService = ref('');
+    const selectedTime = ref('');
+    const mode = ref('book');
+    const selectedAppointment = ref(null);
+    const appointments = ref([]);
+    const unavailableTimeSlots = ref([]);
+    const availableTimeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+    
+    const services = [
+        { id: 1, name: 'Checkup', duration: 60, price: 80, icon: 'fas fa-stethoscope' },
+        { id: 2, name: 'Massage', duration: 90, price: 120, icon: 'fas fa-bottle-droplet' },
+        { id: 3, name: 'Manicure', duration: 45, price: 40, icon: 'fas fa-hand' },
+        { id: 4, name: 'Pedicure', duration: 60, price: 50, icon: 'fas fa-brush' },
+        { id: 5, name: 'Hair Removal', duration: 30, price: 60, icon: 'fas fa-user-ninja' }
+    ];
 
-const maxDate = new Date();
-maxDate.setMonth(maxDate.getMonth() + 3);
-const availableTimeSlots = ['09:00', '10:00', '11:00', '1:00', '2:00', '3:00', '4:00', '5:00'];
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 3);
+    
+        onMounted(() => {
+            fetchAppointments();
+        });
 
-// Fetch appointments on mount
-onMounted(() => {
-    fetchAppointments();
-});
+    const fetchAppointments = async () => {
+        try {
+            const querySnapshot = await getDocs(collection(database, 'appointments'));
+            appointments.value = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Error fetching appointments:', error);
+        }
+    };
 
-const fetchAppointments = async () => {
+    const selectTimeSlot = (slot) => {
+    if (!disableSlot(slot)) {
+        selectedTime.value = slot;
+    }
+};
+
+
+
+
+
+
+const formatTime = (time) => {
+    const [hour, minute] = time.split(':');
+    return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+};
+
+    const getServiceIcon = (serviceName) => {
+        const service = services.find(s => s.name === serviceName);
+        return service ? service.icon : 'fas fa-concierge-bell';
+    };
+
+
+const updateUnavailableTimeSlots = () => {
+    if (!selectedDate.value) return;
+
+    const formattedDate = selectedDate.value.toISOString().split('T')[0];
+    unavailableTimeSlots.value = appointments.value
+        .filter(appointment => appointment.date === formattedDate)
+        .map(appointment => appointment.time);
+};
+
+const disableSlot = (slot) => {
+    return unavailableTimeSlots.value.includes(slot);
+};
+
+watch(selectedDate, updateUnavailableTimeSlots);
+
+
+    const setMode = (newMode) => {
+        mode.value = newMode;
+        if (newMode === 'view') {
+            fetchAppointments();
+            clearSelection();
+        }
+    };
+
+    const clearSelection = () => {
+        selectedService.value = null;
+        selectedDate.value = null;
+        selectedTime.value = null;
+        selectedAppointment.value = null;
+    };
+
+    const selectAppointment = (appointment) => {
+        selectedAppointment.value = appointment;
+        mode.value = 'update';
+        selectedService.value = services.find(s => s.name === appointment.service)?.id;
+        selectedDate.value = new Date(appointment.date);
+        selectedTime.value = appointment.time;
+    };
+
+    const updateAppointment = async () => {
+        if (selectedAppointment.value) {
+            const appointmentRef = doc(database, 'appointments', selectedAppointment.value.id);
+            await updateDoc(appointmentRef, {
+                service: selectedServiceDetails.value.name,
+                date: selectedDate.value.toISOString().split('T')[0],
+                time: selectedTime.value,
+            });
+            alert('Appointment updated successfully!');
+            setMode('view');
+        }
+    };
+
+    const cancelAppointment = async (appointmentId) => {
     try {
-        const querySnapshot = await getDocs(collection(database, 'appointments'));
-        appointments.value = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-    } catch (error) {
-        console.error('Error fetching appointments:', error);
-    }
-};
-
-const getServiceIcon = (serviceName) => {
-    const service = services.find(s => s.name === serviceName);
-    return service ? service.icon : 'fas fa-concierge-bell';
-};
-
-const setMode = (newMode) => {
-    mode.value = newMode;
-    if (newMode === 'view') {
-        fetchAppointments();
-        clearSelection();
-    }
-};
-
-const clearSelection = () => {
-    selectedService.value = null;
-    selectedDate.value = null;
-    selectedTime.value = null;
-    selectedAppointment.value = null;
-};
-
-const selectAppointment = (appointment) => {
-    selectedAppointment.value = appointment;
-    mode.value = 'update';
-    selectedService.value = services.find(s => s.name === appointment.service)?.id;
-    selectedDate.value = new Date(appointment.date);
-    selectedTime.value = appointment.time;
-};
-
-const updateAppointment = async () => {
-    if (selectedAppointment.value) {
-        const appointmentRef = doc(database, 'appointments', selectedAppointment.value.id);
+        // Update the appointment status to "pending cancellation"
+        const appointmentRef = doc(database, 'appointments', appointmentId);
         await updateDoc(appointmentRef, {
-            service: selectedServiceDetails.value.name,
-            date: selectedDate.value.toISOString().split('T')[0],
-            time: selectedTime.value,
+            status: 'pending cancellation'
         });
-        alert('Appointment updated successfully!');
-        setMode('view');
+
+        // Create a cancellation request document for tracking
+        await addDoc(collection(database, 'cancellation_requests'), {
+            appointmentId,
+            status: 'pending',
+            requestedAt: new Date().toISOString()
+        });
+
+        alert('Your cancellation request is pending approval.');
+        fetchAppointments(); // Refresh the appointments list to show updated status
+
+    } catch (error) {
+        console.error('Error processing cancellation request:', error);
+        alert('Failed to send cancellation request.');
     }
 };
 
-const cancelAppointment = async (appointmentId) => {
-    await addDoc(collection(database, 'cancellation_requests'), {
-        appointmentId,
-        status: 'pending',
-        requestedAt: new Date().toISOString()
-    });
-    alert('Cancellation request sent for approval!');
-    fetchAppointments();
-};
 
-const scheduleAppointment = async () => {
+    const scheduleAppointment = async () => {
     if (isFormValid.value) {
-        await addDoc(collection(database, 'appointments'), {
+        const appointmentData = {
             service: selectedServiceDetails.value.name,
-            date: selectedDate.value.toISOString().split('T')[0],
+            date: selectedDate.value.toISOString().split('T')[0], // Ensures you save only the date part
             time: selectedTime.value,
-            price: selectedServiceDetails.value.price
-        });
-        alert('Appointment scheduled successfully!');
+            price: selectedServiceDetails.value.price,
+            status: 'pending' // New status field
+        };
+        
+        // Log the appointment data to debug
+        console.log("Saving appointment:", appointmentData);
+        
+        await addDoc(collection(database, 'appointments'), appointmentData);
+        alert('Appointment request sent! Waiting for approval.');
         setMode('view');
     }
 };
+
+
+
 
 // Computed properties
 const isFormValid = computed(() => selectedDate.value && selectedTime.value && selectedService.value);
 const selectedServiceDetails = computed(() => services.find(service => service.id === selectedService.value) || {});
 const formattedDate = computed(() => selectedDate.value ? new Date(selectedDate.value).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '');
-const modeTitle = computed(() => (mode.value === 'book' ? 'Book an Appointment' : mode.value === 'view' ? 'View Appointments' : 'Update Appointment'));
 
 const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-const selectTimeSlot = (slot) => selectedTime.value = slot;
+
+
 </script>
 
 <style scoped>
-* {
-    font-family: 'Poppins', sans-serif;
-}
+    * {
+        font-family: 'Poppins', sans-serif;
+    }
 
-.mode-selection {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
+    .date-time-summary-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px; 
+    }
 
-.mode-selection button.active {
-    background-color: #4b0082;
-    color: white;
-}
+    .summary-container {
+        margin-top: 20px; 
+    }
 
-.appointment-scheduler-wrapper {
-    display: flex;
-    justify-content: space-between;
-    align-items: stretch;
-    max-width: 100%;
-    height: 100%;
-    margin: 0 auto;
-    background-color: #f8f8f8;
-}
+    .mode-selection {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 20px;
+        
+    } 
 
-.illustration-content {
-    text-align: center;
-}
+    .time-slot.disabled {
+    background-color: #d3d3d3;
+    cursor: not-allowed;
+    }
 
-.illustration h1 {
-    color: #1a1a1a;
-    font-size: 32px;
-    margin-bottom: 30px;
-}
 
-.illustration {
-    position: fixed; /* Fix the illustration in place */
-    top: 0; /* Align it to the top of the viewport */
-    left: 0; /* Align it to the left */
-    width: 40%; /* Width of the illustration */
-    height: 100vh; /* Full height of the viewport */
-    overflow: hidden; /* Prevent overflow */
-    background-color: #f9f9f9; /* Background color */
-    z-index: 1; /* Ensure it's above other content */
-}
-.illustration-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+    .status-pending {
+        color: #e6ac00; 
+    }
+
+    .status-approved {
+        color: #28a745; 
+    }
+
+    .status-pending-cancellation {
+    color: #e67e22; 
+    }
+  
+    .mode-selection button {
+    font-size: 16px;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    color: #4b0082;
+    background-color: #e6e6fa;
+    transition: background-color 0.3s, color 0.3s;
+    }
+
+    .mode-selection button.active {
+        background-color: #4b0082;
+        color: white;
+    }
+
+    .mode-selection button:hover {
+        background-color: #d8bfd8;
+    }
+    .header {
+        display: flex;
+        justify-content: space-between; 
+        align-items: center; 
+        margin-bottom: 20px; 
+    }
+
+
+    .appointment-scheduler-wrapper {
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        max-width: 100%;
+        height: 100%;
+        margin: 0 auto;
+        background-color: #f8f8f8;
+    }
+
+    .illustration-content {
+        text-align: center;
+    }
+
+    .illustration h1 {
+        color: #1a1a1a;
+        font-size: 32px;
+        margin-bottom: 30px;
+    }
+
+    .scheduler-container {
+        background-color: #f7f7f7; 
+        padding: 20px; 
+        border-radius: 8px; 
+        box-shadow: 0 4px 8px rgba(55, 38, 73, 0.2); 
+        z-index: 10; 
+    }
+
+    .illustration {
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        width: 40%; 
+        height: 100vh; 
+        overflow: hidden; 
+        background-color: #f9f9f9;
+        z-index: 1; 
+    }
+    .illustration-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
 
     .appointment-scheduler {
-        margin-left: 40%; /* Give space for the fixed illustration */
-        width: 60%; /* Remaining width for the scheduler */
+        margin-left: 40%; 
+        width: 60%; 
         padding: 40px;
         background-color: white;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         border-radius: 12px;
-        overflow-y: auto; /* Enable scrolling within this container */
-        height: 100vh; /* Full height of the viewport */
-        position: relative; /* Ensure relative positioning for z-index context */
-        z-index: 0; /* Set below the illustration */
+        overflow-y: auto; 
+        height: 100vh; 
+        position: relative; 
+        z-index: 0; 
     }
-.title {
-    text-align: left;
-    color: #4b0082;
-    margin-bottom: 2px;
-    font-size: 25px;
-}
-
-.appointment-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
+    .appointment-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
 
     .appointment-card {
         display: flex;
@@ -335,25 +459,18 @@ const selectTimeSlot = (slot) => selectedTime.value = slot;
     }
 
     .update-button {
-        background-color: #4b0082;
+        background-color: #288cc5;
     }
 
     .cancel-button {
-        background-color: red;
+        background-color: rgb(226, 19, 19);
     }
 
     .update-button:hover, .cancel-button:hover {
         opacity: 0.8;
     }
 
-        
-    .title {
-        text-align: left;
-        color: #4b0082;
-        margin-bottom: 2px;
-        font-size: 25px;
-    }
-
+  
     .form-container {
         display: flex;
         flex-direction: column;
@@ -402,14 +519,14 @@ const selectTimeSlot = (slot) => selectedTime.value = slot;
 
     .date-time-selection {
     display: flex;
-    justify-content: space-between; /* Ensure the calendar and time slots are side by side */
-    position: relative; /* Ensure it stays in the stacking context */
-    z-index: 2; /* Bring it above other elements if necessary */
-}
+    justify-content: space-between;
+    position: relative; 
+    z-index: 2; 
+    }
 
     .vdp-datepicker__calendar {
-        position: relative; /* Ensure it's positioned in the flow */
-        z-index: 3; /* Bring calendar above other elements */
+        position: relative; 
+        z-index: 3; 
     }
         .time-slots-wrapper {
         flex: 1;
