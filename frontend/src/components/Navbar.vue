@@ -8,11 +8,23 @@
       <router-link to="/home" class="nav-item" active-class="active">Home</router-link>
       <router-link to="/about" class="nav-item" active-class="active">About</router-link>
       <div class="nav-item dropdown">
-        <span class="dropdown-toggle" @click="toggleDropdown">Services</span>
-        <div v-if="isDropdownOpen" class="dropdown-menu">
-          <router-link to="/appointment" class="dropdown-item">Appointment</router-link>
-          <router-link to="/offers" class="dropdown-item">Offers</router-link>
-        </div>
+        <button class="dropdown-toggle" @click="toggleDropdown">
+          Services
+          <ChevronDown :class="{ 'rotate-180': isDropdownOpen }" class="inline-block w-4 h-4 ml-1 transition-transform duration-200" />
+        </button>
+        <transition
+          enter-active-class="transition ease-out duration-200"
+          enter-from-class="opacity-0 translate-y-1"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition ease-in duration-150"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 translate-y-1"
+        >
+          <div v-if="isDropdownOpen" class="dropdown-menu">
+            <router-link to="/appointment" class="dropdown-item">Appointment</router-link>
+            <router-link to="/offers" class="dropdown-item">Offers</router-link>
+          </div>
+        </transition>
       </div>
       <router-link to="/contact" class="nav-item" active-class="active">Contact Us</router-link>
       
@@ -79,7 +91,7 @@ import { ref, onMounted } from 'vue'
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { firestore } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { UserCircle2, UserCog2, Shield, LogOut } from 'lucide-vue-next'
+import { ChevronDown, UserCircle2, UserCog2, Shield, LogOut } from 'lucide-vue-next'
 import { useRouter } from 'vue-router' // Import useRouter
 
 // State
@@ -234,36 +246,45 @@ nav {
 
 .dropdown {
   position: relative;
-  cursor: pointer;
 }
 
 .dropdown-toggle {
+  display: flex;
+  align-items: center;
   color: #333;
   font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .dropdown-toggle:hover {
   color: #6a4fb3;
+  background-color: rgba(106, 79, 179, 0.1);
 }
 
 .dropdown-menu {
   position: absolute;
-  top: 100%;
-  left: 0;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
   background-color: #fff;
-  border: 1px solid #ddd;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  min-width: 150px;
+  min-width: 180px;
   z-index: 1000;
 }
 
 .dropdown-item {
-  padding: 10px 20px;
+  padding: 12px 20px;
   color: #333;
   text-decoration: none;
   display: block;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .dropdown-item:hover {
