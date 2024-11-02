@@ -279,7 +279,7 @@ export default {
 }
 
 .search-container {
-  margin-bottom: 0; /* Reset margin */
+  margin-right: 10px;
 }
 
 .search-input {
