@@ -261,23 +261,75 @@ export default {
 </script>
 
 <style scoped>
-/* Enhanced styles */
+/* Main container styling */
+.container {
+  max-width: 800px;
+  margin: auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  font-family: 'Poppins', sans-serif;
+}
 
 .header {
+  text-align: center;
   margin-bottom: 20px;
 }
 
 .header-actions {
   display: flex;
-  justify-content: space-between; /* Distribute space between the button and search bar */
-  align-items: center; /* Center items vertically */
-  margin-bottom: 20px; /* Space below the header actions */
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+/* Button styling */
+.add-button,
+.edit-button,
+.delete-button,
+.submit-button,
+.cancel-button {
+  font-family: 'Poppins', sans-serif;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 10px 20px;
+  color: #fff;
+  transition: background-color 0.3s;
 }
 
 .add-button {
-  margin-bottom: 0; /* Reset margin */
+  background-color: #007bff;
 }
 
+.add-button:hover {
+  background-color: #0056b3;
+}
+
+.edit-button {
+  background-color: #28a745;
+}
+
+.delete-button {
+  background-color: #dc3545;
+}
+
+.submit-button {
+  background-color: #007bff;
+}
+
+.submit-button:hover {
+  background-color: #0056b3;
+}
+
+.cancel-button {
+  background-color: #ccc;
+  color: #333;
+  margin-right: 10px;
+}
+
+/* Search bar styling */
 .search-container {
   margin-right: 10px;
 }
@@ -287,37 +339,12 @@ export default {
   padding: 5px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  font-family: 'Poppins';
-}
-
-.container {
-  max-width: 800px;
-  margin: auto;
-  padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  font-family: 'Poppins', sans-serif; /* Apply Poppins font */
-}
-
-.header {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.add-button {
-  background-color: #007bff;
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
   font-family: 'Poppins', sans-serif;
-  transition: background-color 0.3s;
 }
 
-.add-button:hover {
-  background-color: #0056b3;
+/* Table styling */
+.services-list {
+  margin-top: 20px;
 }
 
 .services-table {
@@ -350,22 +377,7 @@ export default {
   gap: 5px;
 }
 
-.edit-button,
-.delete-button {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-family: 'Poppins', sans-serif;
-}
-
-.delete-button {
-  background-color: #dc3545;
-
-}
-
+/* Modal styling */
 .modal {
   position: fixed;
   top: 0;
@@ -382,25 +394,15 @@ export default {
   background-color: #fff;
   padding: 20px;
   border-radius: 8px;
-  width: 400px;
+  width: 450px;
+  max-width: 90%;
+  box-sizing: border-box;
 }
 
-.service-form .form-group {
-  margin-bottom: 15px;
-}
-
-.service-form label {
-  display: block;
-  margin-bottom: 5px;
-}
-
-.service-form input,
-.service-form select,
-.service-form textarea {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+.modal-content h3 {
+  text-align: center;
+  font-family: 'Poppins', sans-serif;
+  margin-bottom: 20px;
 }
 
 .modal-actions {
@@ -408,29 +410,30 @@ export default {
   justify-content: flex-end;
 }
 
-.modal-content input,
-.modal-content textarea,
-.modal-content select {
-  font-family: 'Poppins', sans-serif; /* Apply Poppins font */
+/* Form styling for uniform textbox alignment */
+.service-form .form-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: 15px;
 }
 
-.submit-button {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
+.service-form label {
+  font-family: 'Poppins', sans-serif;
+  margin-bottom: 5px;
+}
+
+.service-form input[type="text"],
+.service-form input[type="number"],
+.service-form textarea,
+.service-form select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
   border-radius: 4px;
-  cursor: pointer;
   font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  box-sizing: border-box;
 }
 
-.submit-button:hover {
-  background-color: #0056b3;
-}
-
-.cancel-button {
-  margin-right: 10px;
-  background-color: #ccc;
-  font-family: 'Poppins', sans-serif;
-}
 </style>
