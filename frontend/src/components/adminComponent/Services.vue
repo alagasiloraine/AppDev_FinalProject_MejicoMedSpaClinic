@@ -331,12 +331,12 @@ export default {
 
 /* Search bar styling */
 .search-container {
-  margin-right: 10px;
+  margin-right: 20px;
 }
 
 .search-input {
   width: 100%;
-  padding: 5px;
+  padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-family: 'Poppins', sans-serif;
