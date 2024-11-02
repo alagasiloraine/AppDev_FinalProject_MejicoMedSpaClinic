@@ -3,19 +3,7 @@
     <Navbar />
 
     <main>
-      <section class="welcome-section"> 
-        <div class="blur-background"></div>
-        <div class="welcome-content">
-          <div class="welcome-text">
-            <h1>Expert Care for <span>Radiant Skin</span> and Lasting Wellness</h1>
-            <p>Mejico MD Medical Spa Clinic offers a blend of advanced dermatological treatments and personalized skin care services designed to bring out your natural beauty. Whether you're seeking medical consultations or luxurious facials, trust us to enhance your skin's health and appearance.</p>
-            <button class="cta-button">Book an Appointment</button>
-          </div>
-          <div class="welcome-logo">
-            <img src="/src/images/mejico-image5.png" alt="Mejico Logo" />
-          </div>
-        </div>
-      </section>
+      <LandingAbout />
     </main>
 
     <FooterComponent />
@@ -23,14 +11,26 @@
 </template>
 
 <script>
-import Navbar from './Navbar.vue';
+import { ref } from 'vue';
 import FooterComponent from './Footer.vue';
+import LandingAbout from './LandingAbout.vue'; 
+import Navbar from './Navbar.vue';
 
 export default {
   name: 'LandingPage',
   components: {
-    Navbar,
     FooterComponent,
+    LandingAbout,
+    Navbar,
+  },
+  setup() {
+    const isDropdownOpen = ref(false);
+
+    const toggleDropdown = () => {
+      isDropdownOpen.value = !isDropdownOpen.value;
+    };
+
+    return { isDropdownOpen, toggleDropdown };
   },
 };
 </script>
@@ -45,6 +45,106 @@ export default {
   margin: 0;
   padding: 0;
   background-color: #f9f9f9;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fff;
+  padding: 15px 30px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+}
+
+.logo img {
+  height: 70px;
+}
+
+.clinic-name {
+  font-size: 24px;
+  color: #3d2f81;
+  margin-left: 15px;
+  font-weight: 600;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+}
+
+.nav-item {
+  color: #333;
+  margin-left: 20px;
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+}
+
+.nav-item.active {
+  color: #6a4fb3;
+}
+
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #6a4fb3;
+}
+
+.nav-item:hover {
+  color: #6a4fb3;
+}
+
+.dropdown {
+  position: relative;
+  cursor: pointer;
+}
+
+.dropdown-toggle {
+  color: #333;
+  font-weight: 500;
+}
+
+.dropdown-toggle:hover {
+  color: #6a4fb3;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 150px;
+  z-index: 1000;
+}
+
+.dropdown-item {
+  padding: 10px 20px;
+  color: #333;
+  text-decoration: none;
+  display: block;
+}
+
+.dropdown-item:hover {
+  background-color: #f0f0f0;
+  color: #6a4fb3;
 }
 
 main {
@@ -142,6 +242,15 @@ main {
 }
 
 @media (max-width: 768px) {
+  header {
+    flex-direction: column;
+    padding: 15px;
+  }
+
+  nav {
+    margin-top: 15px;
+  }
+
   .welcome-content {
     flex-direction: column;
     text-align: center;

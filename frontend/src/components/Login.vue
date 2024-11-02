@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <button class="exit-button" @click="goToLandingPage">
-      <ArrowLeft class="exit-icon" /> <!-- Icon component for the exit button -->
+      <ArrowLeft class="exit-icon" />
     </button>
     <div class="login-box">
       <div class="logo-header">
@@ -83,7 +83,7 @@ import { useRouter } from 'vue-router';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import { loginUser } from '../services/api';
-import { Mail, Lock, ArrowLeft } from 'lucide-vue-next'; // Import the exit icon
+import { Mail, Lock, ArrowLeft } from 'lucide-vue-next'; 
 
 export default {
   components: { Mail, Lock, ArrowLeft },

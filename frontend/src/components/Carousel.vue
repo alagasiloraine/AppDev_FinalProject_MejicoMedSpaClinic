@@ -17,23 +17,27 @@
         modifier: 1,
         slideShadows: false,
       }"
-      :autoplay="{
-        delay: 3000, 
-        disableOnInteraction: false,
-      }"
+      :autoplay="autoplayConfig"
       :pagination="{
         clickable: true,
         el: '.swiper-pagination'
       }"
+      @swiper="onSwiper"
     >
       <SwiperSlide class="content" v-for="(image, index) in images" :key="index">
-        <div class="image-container">
-          <img :src="image.src" alt="Image">
-        </div>
-        <div class="text-content">
-          <h3>{{ image.title }}</h3>
-          <p>{{ image.description }}</p>
-          <button class="btn">Read more</button>
+        <div class="slide-content" :class="{ 'expanded': expandedSlides[index] }">
+          <div class="image-container">
+            <img :src="image.src" :alt="image.title">
+          </div>
+          <div class="text-content">
+            <h3>{{ image.title }}</h3>
+            <div class="description-container" :class="{ 'scrollable': expandedSlides[index] }">
+              <p>{{ image.description }}</p>
+            </div>
+            <button class="btn" @click="toggleExpand(index)">
+              {{ expandedSlides[index] ? 'Read less' : 'Read more' }}
+            </button>
+          </div>
         </div>
       </SwiperSlide>
     </Swiper>
@@ -42,9 +46,10 @@
 </template>
 
 <script>
-import 'swiper/swiper-bundle.min.css';
+import { ref, reactive } from 'vue';
 import { Swiper, SwiperSlide } from 'swiper/vue';
 import SwiperCore, { Autoplay, Pagination, EffectCoverflow } from 'swiper';
+import 'swiper/swiper-bundle.min.css';
 
 SwiperCore.use([Autoplay, Pagination, EffectCoverflow]);
 
@@ -54,15 +59,49 @@ export default {
     Swiper,
     SwiperSlide,
   },
+  setup() {
+    const swiperInstance = ref(null);
+    const autoplayConfig = ref({
+      delay: 3000,
+      disableOnInteraction: true,
+    });
+    const expandedSlides = reactive({});
+
+    const onSwiper = (swiper) => {
+      swiperInstance.value = swiper;
+    };
+
+    const toggleExpand = (index) => {
+      expandedSlides[index] = !expandedSlides[index];
+      if (expandedSlides[index]) {
+        swiperInstance.value.autoplay.stop();
+        swiperInstance.value.allowTouchMove = false;
+        swiperInstance.value.params.autoplay.disableOnInteraction = true;
+        // Removed the slideTo call to prevent slide change
+      } else {
+        swiperInstance.value.autoplay.start();
+        swiperInstance.value.allowTouchMove = true;
+        swiperInstance.value.params.autoplay.disableOnInteraction = false;
+      }
+    };
+
+    return {
+      swiperInstance,
+      autoplayConfig,
+      onSwiper,
+      expandedSlides,
+      toggleExpand,
+    };
+  },
   data() {
     return {
       images: [
-        { src: '/src/images/image1.jpg', title: 'Expertise in Medical Spa Services', description: 'At Mejico MD Medical Spa, we blend medical precision with spa luxury, offering services supervised by certified specialists and licensed practitioners. Our team is dedicated to achieving safe, effective, and transformative results for every client.' },
-        { src: '/src/images/image2.jpg', title: 'Customized Treatment Plans', description: 'Every individual is unique, and so are their skincare and wellness needs. We offer personalized consultations to design custom treatment plans that address your specific goals, ensuring results that feel and look natural.' },
-        { src: '/src/images/image3.jpg', title: 'Safe and Hygienic Environment', description: 'Your safety and comfort are our top priorities. We maintain strict cleanliness and sterilization protocols to ensure a safe, relaxing, and hygienic environment where you can unwind with peace of mind.' },
-        { src: '/src/images/image4.jpg', title: 'Holistic Approach to Wellness', description: 'Beyond beauty, we focus on holistic health, promoting overall well-being through a combination of medical and therapeutic services. Our treatments not only enhance your appearance but also foster relaxation, inner peace, and vitality.' },
-        { src: '/src/images/image5.jpg', title: 'Exceptional Customer Care', description: 'We pride ourselves on our warm, welcoming atmosphere and attentive service. From the moment you arrive to the completion of your treatment, our team is dedicated to making your experience seamless and enjoyable.' },
-        { src: '/src/images/image5.jpg', title: 'Convenient Location and Flexible Scheduling', description: 'Located in a prime, accessible area, Mejico MD Medical Spa offers flexible scheduling options to fit your busy lifestyle. We strive to make quality care convenient and available to all who seek it.' },
+        { src: '/src/images/mejicobgimage.jpg', title: 'Expertise in Medical Spa Services', description: 'At Mejico MD Medical Spa, we blend medical precision with spa luxury, offering services supervised by certified specialists and licensed practitioners. Our team is dedicated to achieving safe, effective, and transformative results for every client. We continuously update our knowledge and skills to bring you the latest and most effective treatments in the medical spa industry.' },
+        { src: '/src/images/mejicobgimage.jpg', title: 'Customized Treatment Plans', description: 'Every individual is unique, and so are their skincare and wellness needs. We offer personalized consultations to design custom treatment plans that address your specific goals, ensuring results that feel and look natural. Our experts take the time to understand your concerns, lifestyle, and desired outcomes to create a tailored approach that works best for you.' },
+        { src: '/src/images/mejicobgimage.jpg', title: 'Safe and Hygienic Environment', description: 'Your safety and comfort are our top priorities. We maintain strict cleanliness and sterilization protocols to ensure a safe, relaxing, and hygienic environment where you can unwind with peace of mind. Our state-of-the-art facility is equipped with the latest technology and adheres to the highest standards of safety and hygiene in the industry.' },
+        { src: '/src/images/mejicobgimage.jpg', title: 'Holistic Approach to Wellness', description: 'Beyond beauty, we focus on holistic health, promoting overall well-being through a combination of medical and therapeutic services. Our treatments not only enhance your appearance but also foster relaxation, inner peace, and vitality. We believe in nurturing the connection between physical appearance and mental well-being for a truly transformative experience.' },
+        { src: '/src/images/mejicobgimage.jpg', title: 'Exceptional Customer Care', description: 'We pride ourselves on our warm, welcoming atmosphere and attentive service. From the moment you arrive to the completion of your treatment, our team is dedicated to making your experience seamless and enjoyable. We listen to your concerns, answer your questions, and ensure you feel comfortable and confident throughout your journey with us.' },
+        { src: '/src/images/mejicobgimage.jpg', title: 'Convenient Location and Flexible Scheduling', description: 'Located in a prime, accessible area, Mejico MD Medical Spa offers flexible scheduling options to fit your busy lifestyle. We strive to make quality care convenient and available to all who seek it. Our extended hours and efficient booking system ensure that you can receive the care you need at a time that works best for you.' },
       ],
     };
   },
@@ -98,37 +137,21 @@ export default {
 .header h2 .underline {
   display: block;
   position: absolute;
-  bottom: -5px; /* Adjust as needed to align with text */
+  bottom: -5px;
   left: 0;
-  width: 0; /* Start with 0 width */
-  height: 3px; /* Thickness of the underline */
+  width: 0;
+  height: 3px;
   background-color: #6656b3;
   animation: snakeLine 3s ease-in-out infinite;
   margin-bottom: 5px;
 }
 
-/* Keyframes for the snake-like animation */
 @keyframes snakeLine {
-  0% {
-    width: 0;
-    transform: translateX(0);
-  }
-  25% {
-    width: 20%;
-    transform: translateX(-5%);
-  }
-  50% {
-    width: 100%;
-    transform: translateX(0);
-  }
-  75% {
-    width: 50%;
-    transform: translateX(5%);
-  }
-  100% {
-    width: 100%;
-    transform: translateX(0);
-  }
+  0% { width: 0; transform: translateX(0); }
+  25% { width: 20%; transform: translateX(-5%); }
+  50% { width: 100%; transform: translateX(0); }
+  75% { width: 50%; transform: translateX(5%); }
+  100% { width: 100%; transform: translateX(0); }
 }
 
 .mySwiper {
@@ -138,6 +161,13 @@ export default {
 }
 
 .content {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide-content {
   background-color: #382d6e;
   border: 0.2rem solid rgba(255, 255, 255, 0.1);
   border-radius: 0.7rem;
@@ -145,7 +175,15 @@ export default {
   text-align: center;
   padding: 1rem;
   box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s ease; /* Smooth scaling */
+  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-content.expanded {
+  position: relative;
+  z-index: 10;
 }
 
 .image-container {
@@ -164,10 +202,12 @@ export default {
 
 .text-content {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   flex-direction: column;
   padding-top: 1rem;
+  flex-grow: 1;
+  overflow: hidden;
 }
 
 .text-content h3 {
@@ -177,13 +217,24 @@ export default {
   color: #ffffff;
 }
 
+.description-container {
+  max-height: 80px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.description-container.scrollable {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .text-content p {
-  max-width: 22rem;
   font-size: 12px;
   font-weight: 400;
   color: #b5b5b5;
-  text-align: center;
+  text-align: left;
   margin-bottom: 1rem;
+  padding-right: 10px;
 }
 
 .btn {
@@ -214,5 +265,23 @@ export default {
 
 .swiper-pagination-bullet-active {
   background-color: #5d4db0;
+}
+
+/* Scrollbar Styles */
+.description-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.description-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.description-container::-webkit-scrollbar-thumb {
+  background-color: rgba(121, 100, 228, 0.5);
+  border-radius: 20px;
+}
+
+.description-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(121, 100, 228, 0.8);
 }
 </style>

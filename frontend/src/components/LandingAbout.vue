@@ -155,8 +155,8 @@ const content = ref([
   display: inline-block;
   margin-bottom: 20px;
   width: 400px;
-  margin-left: -20px;
-  margin-top: 30px;
+  margin-left: -40px;
+  margin-top: 10px;
 }
 
 .story-header h2 {

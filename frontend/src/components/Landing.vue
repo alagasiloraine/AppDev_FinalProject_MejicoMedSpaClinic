@@ -43,8 +43,8 @@
 <script>
 import { ref, onMounted } from 'vue';
 import FooterComponent from './Footer.vue';
-import Carousel from './Carousel.vue'; // Import the Carousel component
-import LandingAbout from './LandingAbout.vue'; // Import the Carousel component
+import Carousel from './Carousel.vue'; 
+import LandingAbout from './LandingAbout.vue'; 
 
 export default {
   name: 'LandingPage',
