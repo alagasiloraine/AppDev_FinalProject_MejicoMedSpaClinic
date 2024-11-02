@@ -312,6 +312,7 @@ export default {
   padding: 10px 20px;
   border-radius: 5px;
   cursor: pointer;
+  font-family: 'Poppins', sans-serif;
   transition: background-color 0.3s;
 }
 
@@ -357,10 +358,12 @@ export default {
   padding: 5px 10px;
   border-radius: 5px;
   cursor: pointer;
+  font-family: 'Poppins', sans-serif;
 }
 
 .delete-button {
   background-color: #dc3545;
+
 }
 
 .modal {
@@ -405,6 +408,12 @@ export default {
   justify-content: flex-end;
 }
 
+.modal-content input,
+.modal-content textarea,
+.modal-content select {
+  font-family: 'Poppins', sans-serif; /* Apply Poppins font */
+}
+
 .submit-button {
   background-color: #007bff;
   color: white;
@@ -412,6 +421,7 @@ export default {
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
+  font-family: 'Poppins', sans-serif;
 }
 
 .submit-button:hover {
@@ -421,5 +431,6 @@ export default {
 .cancel-button {
   margin-right: 10px;
   background-color: #ccc;
+  font-family: 'Poppins', sans-serif;
 }
 </style>
