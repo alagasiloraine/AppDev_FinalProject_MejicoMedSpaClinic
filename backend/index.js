@@ -145,10 +145,67 @@ app.put('/api/appointments/:id', async (req, res) => {
 });
 
 
+app.get('/api/services', async (req, res) => {
+    try {
+        const snapshot = await admin.firestore().collection('services').get();
+        const services = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.status(200).json(services);
+    } catch (error) {
+        console.error('Error fetching services:', error);
+        res.status(500).json({ error: 'Failed to fetch services', details: error.message });
+    }
+});
 
+app.post('/api/services', async (req, res) => {
+    const { name, description, price, availability } = req.body;
 
+    // Validate incoming data
+    if (!name || !description || price === undefined || !availability) {
+        return res.status(400).json({ error: 'All fields are required.' });
+    }
 
+    try {
+        // Add the service to the Firestore collection
+        const serviceRef = await admin.firestore().collection('services').add({
+            name,
+            description,
+            price,
+            availability,
+            createdAt: FieldValue.serverTimestamp() // Automatically set timestamp
+        });
 
+        console.log(`Service added with ID: ${serviceRef.id}`);
+        res.status(201).json({ message: 'Service added successfully', id: serviceRef.id });
+    } catch (error) {
+        console.error('Error adding service:', error);
+        res.status(500).json({ error: 'Failed to add service', details: error.message });
+    }
+});
+
+// Update a service
+app.put('/api/services/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, description, price, availability } = req.body;
+    try {
+        await admin.firestore().collection('services').doc(id).update({ name, description, price, availability });
+        res.status(200).send('Service updated');
+    } catch (error) {
+        console.error('Error updating service:', error);
+        res.status(500).json({ error: 'Failed to update service', details: error.message });
+    }
+});
+
+// Delete a service
+app.delete('/api/services/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await admin.firestore().collection('services').doc(id).delete();
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting service:', error);
+        res.status(500).json({ error: 'Failed to delete service', details: error.message });
+    }
+});
 // Start the server
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);

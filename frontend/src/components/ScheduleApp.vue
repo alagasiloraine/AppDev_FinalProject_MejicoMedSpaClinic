@@ -1,114 +1,120 @@
 <template>
     <div class="appointment-scheduler-wrapper">
-        <div class="illustration">
-            <div class="illustration-content">
-                <img :src="blogImage" alt="mejico" class="illustration-image" />
-            </div>
+      <div class="illustration">
+        <div class="illustration-content">
+          <img :src="blogImage" alt="mejico" class="illustration-image" />
         </div>
-            <div class="appointment-scheduler">
-                <div class="header">
-                    <div class="mode-selection">
-                        <button @click="setMode('book')" :class="{ active: mode === 'book' }">Booking</button>
-                        <button @click="setMode('view')" :class="{ active: mode === 'view' }">View Appointments</button>
-                        <button @click="setMode('update')" :class="{ active: mode === 'update' }" :disabled="!selectedAppointment">Update</button>
-                    </div>
-                </div>
-            <div v-if="mode === 'view'" class="appointment-cards">
-                <h2>Your Appointments</h2>
-                <div v-for="appointment in appointments" :key="appointment.id" class="appointment-card">
-                    <div class="card-content">
-                        <i :class="getServiceIcon(appointment.service)" class="service-icon"></i>
-                        <div class="appointment-details">
-                        <p><strong>Service:</strong> {{ appointment.service }}</p>
-                        <p><strong>Date:</strong> {{ formatAppointmentDate(appointment.date) }}</p>
-                        <p><strong>Time:</strong> {{ appointment.time }}</p>
-                        <p><strong>Price:</strong> ₱{{ appointment.price.toLocaleString('en-PH') }}</p>
-                        <p><strong>Status:</strong> 
-                        <span :class="{
-                            'status-pending': appointment.status === 'pending',
-                            'status-approved': appointment.status === 'approved',
-                            'status-pending-cancellation': appointment.status === 'pending cancellation'
-                        }">
-                            {{ appointment.status === 'pending' ? 'Waiting for Approval' : 
-                            appointment.status === 'approved' ? 'Approved' : 
-                            appointment.status === 'pending cancellation' ? 'Pending Cancellation' : '' }}
-                        </span>
-                    </p>
-
-                    </div>
-
-                    </div>
-                    <div class="appointment-actions">
-                        <button @click.stop="selectAppointment(appointment)" class="update-button">Update</button>
-                        <button @click.stop="cancelAppointment(appointment.id)" class="cancel-button">Cancel</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-container" v-if="mode === 'book' || mode === 'update'">
-                <!-- Service Selection -->
-                <div class="service-selection">
-                    <h5 style="color: gray;">Select a service.</h5>
-                    <div class="service-options">
-                        <div
-                            v-for="service in services"
-                            :key="service.id"
-                            @click="selectedService = service.id"
-                            :class="['service-option', { selected: selectedService === service.id }]"
-                        >
-                            <i :class="service.icon" class="service-icon"></i>
-                            <p>{{ service.name }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                    <div class="scheduler-container">
-
-                <!-- Date and Time Selection Container -->
-                        <div class="date-time-selection">
-                        <div class="form-group">
-                            <label for="date">Select Date:</label>
-                            <v-date-picker v-model="selectedDate" :min-date="new Date()" :max-date="maxDate" class="date-picker" inline />
-                        </div>
-   
-                        <div class="form-group time-slots-wrapper">
-                            <label>Available Time Slots:</label>
-                            <div class="time-slots">
-                                <button
-                                    v-for="slot in availableTimeSlots"
-                                    :key="slot"
-                                    @click="selectTimeSlot(slot)"
-                                    :class="['time-slot', { 'selected': selectedTime === slot, 'disabled': disableSlot(slot) }]"
-                                    :disabled="disableSlot(slot)"
-                                >
-                                    {{ slot }}
-                                </button>
-                            </div>
-
-                            <div class="summary" v-if="isFormValid">
-                                <h2>Appointment Summary</h2>
-                                <p><strong>Service:</strong> {{ selectedServiceDetails.name }}</p>
-                                <p><strong>Date:</strong> {{ formattedDate }}</p>
-                                <p><strong>Time:</strong> {{ selectedTime || 'Please select a time slot' }}</p>
-                                <p><strong>Price:</strong> ₱{{ selectedServiceDetails.price.toLocaleString('en-PH') }}</p>
-                            </div>
-                        </div>
-                    </div> 
-                </div>
-        
-                <button v-if="isFormValid" @click="mode === 'book' ? scheduleAppointment() : updateAppointment()" class="button">
-                    {{ mode === 'book' ? 'Book Appointment' : 'Update Appointment' }}
-                </button>
-            </div>
+      </div>
+      <div class="appointment-scheduler">
+        <div class="header">
+          <div class="mode-selection">
+            <button @click="setMode('book')" :class="{ active: mode === 'book' }">Booking</button>
+            <button @click="setMode('view')" :class="{ active: mode === 'view' }">View Appointments</button>
+            <button @click="setMode('update')" :class="{ active: mode === 'update' }" :disabled="!selectedAppointment">Update</button>
+          </div>
         </div>
+        <div v-if="mode === 'view'" class="appointment-cards">
+          <h2>Your Appointments</h2>
+          <div v-for="appointment in appointments" :key="appointment.id" class="appointment-card">
+            <div class="card-content">
+              <i :class="getServiceIcon(appointment.service)" class="service-icon"></i>
+              <div class="appointment-details">
+                <p><strong>Service:</strong> {{ appointment.service }}</p>
+                <p><strong>Date:</strong> {{ formatAppointmentDate(appointment.date) }}</p>
+                <p><strong>Time:</strong> {{ appointment.time }}</p>
+                <p><strong>Price:</strong> ₱{{ appointment.price.toLocaleString('en-PH') }}</p>
+                <p><strong>Status:</strong>
+                  <span :class="{
+                    'status-pending': appointment.status === 'pending',
+                    'status-approved': appointment.status === 'approved',
+                    'status-pending-cancellation': appointment.status === 'pending cancellation'
+                  }">
+                    {{ appointment.status === 'pending' ? 'Waiting for Approval' : 
+                    appointment.status === 'approved' ? 'Approved' : 
+                    appointment.status === 'pending cancellation' ? 'Pending Cancellation' : '' }}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div class="appointment-actions">
+              <button @click.stop="selectAppointment(appointment)" class="update-button">Update</button>
+              <button @click.stop="cancelAppointment(appointment.id)" class="cancel-button">Cancel</button>
+            </div>
+          </div>
+        </div>
+  
+        <div class="form-container" v-if="mode === 'book' || mode === 'update'">
+          <!-- Service Selection -->
+          <div class="service-selection">
+            <h5 style="color: gray;">Select a service.</h5>
+            <div class="service-options">
+              <div
+                v-for="service in services"
+                :key="service.id"
+                @click="selectedService = service.id"
+                :class="['service-option', { selected: selectedService === service.id }]"
+              >
+                <i :class="service.icon" class="service-icon"></i>
+                <p>{{ service.name }}</p>
+              </div>
+            </div>
+          </div>
+  
+          <div class="scheduler-container">
+            <!-- Date and Time Selection Container -->
+            <div class="date-time-selection">
+              <div class="form-group">
+                <label for="date">Select Date:</label>
+                <!-- Your Date Picker Component -->
+                <v-date-picker
+                  v-model="selectedDate"
+                  :min-date="new Date()"
+                  :max-date="maxDate"
+                  class="modern-datepicker"
+                  inline
+                />
+              </div>
+  
+              <div class="form-group time-slots-wrapper">
+                <label>Available Time Slots:</label>
+                <div class="time-slots">
+                  <button
+                    v-for="slot in availableTimeSlots"
+                    :key="slot"
+                    @click="selectTimeSlot(slot)"
+                    :class="['time-slot', { 'selected': selectedTime === slot, 'disabled': disableSlot(slot) }]"
+                    :disabled="disableSlot(slot)"
+                  >
+                    {{ slot }}
+                  </button>
+                </div>
+  
+                <div class="summary" v-if="isFormValid">
+                  <h2>Appointment Summary</h2>
+                  <p><strong>Service:</strong> {{ selectedServiceDetails.name }}</p>
+                  <p><strong>Date:</strong> {{ formattedDate }}</p>
+                  <p><strong>Time:</strong> {{ selectedTime || 'Please select a time slot' }}</p>
+                  <p><strong>Price:</strong> ₱{{ selectedServiceDetails.price.toLocaleString('en-PH') }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+  
+          <button v-if="isFormValid" @click="mode === 'book' ? scheduleAppointment() : updateAppointment()" class="button">
+            {{ mode === 'book' ? 'Book Appointment' : 'Update Appointment' }}
+          </button>
+        </div>
+      </div>
     </div>
-</template>
+  </template>
+  
 
 <script setup>
 
     import { ref, computed, onMounted, watch } from 'vue';
     import { collection, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore';
     import { database } from '../firebase';
+    import VueCal from 'vue-cal';
     import VDatePicker from '@vuepic/vue-datepicker';
     import '@vuepic/vue-datepicker/dist/main.css';
     import blogImage from '../assets/images/logo.png';
@@ -291,6 +297,51 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
         gap: 20px; 
     }
 
+    .modern-datepicker {
+        font-family: 'Arial', sans-serif; /* Change font as needed */
+        border: 1px solid #ccc; /* Border styling */
+        border-radius: 8px; /* Rounded corners */
+        overflow: hidden; /* To ensure child elements fit within the border */
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        max-width: 400px; /* Set a max width for the date picker */
+        margin: 0 auto; /* Center the date picker */
+    }
+
+    .modern-datepicker .dp-calendar {
+        background-color: #ffffff; /* Background color of the calendar */
+    }
+
+    .modern-datepicker .dp-calendar .dp-header {
+        background-color: #2a0747; /* Header background color */
+        color: white; /* Header text color */
+        padding: 10px; /* Padding around the header */
+        text-align: center; /* Center the header text */
+        border-bottom: 2px solid #4b0082; /* Bottom border for the header */
+    }
+
+    .modern-datepicker .dp-calendar .dp-day {
+        padding: 10px; /* Spacing around days */
+        cursor: pointer; /* Pointer on hover */
+        transition: background-color 0.3s, color 0.3s; /* Smooth transition for hover */
+        border-radius: 50%; /* Round day buttons */
+    }
+
+    .modern-datepicker .dp-calendar .dp-day:hover {
+        background-color: #e7f1ff; /* Light blue background on hover */
+        color: #52267a; /* Change text color on hover */
+    }
+
+    .modern-datepicker .dp-calendar .dp-day.selected {
+        background-color: #52267a; /* Color for selected day */
+        color: white; /* Text color for selected day */
+        font-weight: bold; /* Bold text for selected day */
+    }
+
+    .modern-datepicker .dp-calendar .dp-day.disabled {
+        color: #ccc; /* Color for disabled days */
+        pointer-events: none; /* Disable hover on disabled days */
+    }
+
     .summary-container {
         margin-top: 20px; 
     }
@@ -300,14 +351,38 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
         justify-content: flex-end;
         gap: 10px;
         margin-bottom: 20px;
-        
     } 
 
-    .time-slot.disabled {
-    background-color: #d3d3d3;
-    cursor: not-allowed;
+    .date-picker {
+        width: 100%;
+        border-radius: 8px;
     }
 
+    .time-slots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .time-slot {
+        background-color: #e9ecef;
+        border: none;
+        border-radius: 5px;
+        padding: 10px 15px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        flex: 1 1 120px; /* Flexible sizing for time slots */
+    }
+
+    .time-slot.selected {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .time-slot.disabled {
+        background-color: #d3d3d3;
+        cursor: not-allowed;
+    }
 
     .status-pending {
         color: #e6ac00; 
@@ -318,19 +393,19 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
     }
 
     .status-pending-cancellation {
-    color: #e67e22; 
+        color: #e67e22; 
     }
   
     .mode-selection button {
-    font-size: 16px;
-    padding: 10px 15px;
-    border-radius: 5px;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
-    color: #4b0082;
-    background-color: #e6e6fa;
-    transition: background-color 0.3s, color 0.3s;
+        font-size: 16px;
+        padding: 10px 15px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+        color: #4b0082;
+        background-color: #e6e6fa;
+        transition: background-color 0.3s, color 0.3s;
     }
 
     .mode-selection button.active {
@@ -341,13 +416,13 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
     .mode-selection button:hover {
         background-color: #d8bfd8;
     }
+
     .header {
         display: flex;
         justify-content: space-between; 
         align-items: center; 
         margin-bottom: 20px; 
     }
-
 
     .appointment-scheduler-wrapper {
         display: flex;
@@ -387,6 +462,7 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
         background-color: #f9f9f9;
         z-index: 1; 
     }
+
     .illustration-image {
         width: 100%;
         height: 100%;
@@ -405,6 +481,7 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
         position: relative; 
         z-index: 0; 
     }
+
     .appointment-cards {
         display: flex;
         flex-direction: column;
@@ -470,7 +547,6 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
         opacity: 0.8;
     }
 
-  
     .form-container {
         display: flex;
         flex-direction: column;
@@ -518,43 +594,20 @@ const formatAppointmentDate = (date) => new Date(date).toLocaleDateString('en-US
     }
 
     .date-time-selection {
-    display: flex;
-    justify-content: space-between;
-    position: relative; 
-    z-index: 2; 
+        display: flex;
+        justify-content: space-between;
+        position: relative; 
+        z-index: 2; 
     }
 
     .vdp-datepicker__calendar {
         position: relative; 
         z-index: 3; 
     }
-        .time-slots-wrapper {
+
+    .time-slots-wrapper {
         flex: 1;
         margin-left: 20px;
-    }
-
-    .time-slots {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 10px;
-    }
-
-    .time-slot {
-        padding: 8px;
-        background-color: #e6e6fa;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-    }
-
-    .time-slot:hover {
-        background-color: #d8bfd8;
-    }
-
-    .time-slot.selected {
-        background-color: rgb(39, 29, 108);
-        color: white;
     }
 
     .summary {
