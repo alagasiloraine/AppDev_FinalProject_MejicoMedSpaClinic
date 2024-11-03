@@ -1,4 +1,5 @@
 <template>
+  
   <header>
     <div class="logo">
       <img src="/src/images/mejico-MDSpa-logo-ntext.png" alt="Mejico Medical Spa Logo" />

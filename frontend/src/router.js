@@ -5,6 +5,7 @@ import Register from './components/Register.vue';
 import Homepage from './components/Homepage.vue';
 import About from './components/About.vue';
 import CustomizeProfile from './components/CustomizeProfile.vue';
+import ContactUs from './components/ContactUs.vue';
 
 const routes = [
   { path: '/', component: Landing },
@@ -13,6 +14,7 @@ const routes = [
   { path: '/home', component: Homepage }, 
   { path: '/about', component: About }, 
   { path: '/customizeprofile', component: CustomizeProfile},
+  { path: '/contact', component: ContactUs},
 ];
 
 const router = createRouter({
