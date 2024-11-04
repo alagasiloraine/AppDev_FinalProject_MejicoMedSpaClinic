@@ -1,7 +1,7 @@
 <template>
-  <Navbar />
-
   <div class="container">
+    <Navbar />
+
     <div class="card">
       <div class="card flex-row">
         <!-- Enhanced Sidebar with profile picture and name -->
@@ -263,6 +263,8 @@
       </div>
     </div>
   </Transition>
+  
+  <FooterComponent />
 </template>
 
 <script setup>
@@ -271,6 +273,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { firestore } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import Navbar from './Navbar.vue';
+import FooterComponent from './Footer.vue';
 import { UserIcon, HistoryIcon, MailIcon, PencilIcon } from 'lucide-vue-next';
 import { User } from 'lucide-vue-next';
 import { CheckIcon, LoaderIcon } from 'lucide-vue-next';
@@ -522,8 +525,10 @@ watch(() => form.phone, (newValue) => {
 </script>
 
 <style scoped>
-/* Container and Background */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
 .container {
+  font-family: 'Poppins', sans-serif;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -532,6 +537,7 @@ watch(() => form.phone, (newValue) => {
   margin-top: 120px;
   width: 100%;
   margin-left: 15px;
+  margin-bottom: 50px;
 }
 
 .card {

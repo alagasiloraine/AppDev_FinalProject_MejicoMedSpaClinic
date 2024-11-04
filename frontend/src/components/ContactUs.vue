@@ -1,7 +1,7 @@
 <template>
-  <Navbar />
-
   <div class="container">
+    <Navbar />
+    
     <!-- Hero Section -->
     <div class="hero-section">
       <div class="hero-background"></div>
@@ -149,7 +149,10 @@ const submitForm = () => {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
 .container {
+  font-family: 'Poppins', sans-serif;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -180,7 +183,7 @@ const submitForm = () => {
   content: "";
   position: absolute;
   inset: 0;
-  background-color: #6656b3;
+  background-color: #382d6e;
 }
 
 .hero-content {
@@ -219,9 +222,9 @@ const submitForm = () => {
 }
 
 .hero-description {
-  font-size: 15px;
+  font-size: 14px;
   color: #f0f0f0;
-  opacity: 0.95;
+  opacity: 0.85;
   line-height: 1.6;
   margin-top: 1rem;
   max-width: 600px;
