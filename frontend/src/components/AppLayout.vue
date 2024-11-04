@@ -15,6 +15,8 @@
             >
               {{ route.name }}
             </router-link>
+            <button @click="logout" class="nav-btn">Logout</button>
+
           </nav>
         </div>
       </div>
@@ -27,17 +29,30 @@
   </template>
   
   <script setup>
-  import { useRoute } from 'vue-router';
-  
-  const route = useRoute();
-  
-  const routes = [
-    { path: '/admin-dashboard', name: 'Dashboard' },
-    { path: '/users', name: 'Users' },
-    { path: '/patients', name: 'Patients' },
-    { path: '/appointments', name: 'Appointments' },
-    { path: '/calendar', name: 'Calendar' },
-    { path: '/analytics', name: 'Analytics' },
-    { path: '/settings', name: 'Settings' },
-  ];
-  </script>
+import { useRouter } from 'vue-router';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase'; // Update the path based on where you have initialized Firebase auth
+
+const router = useRouter();
+
+const logout = async () => {
+  try {
+    await signOut(auth);
+    console.log('User logged out');
+    router.push('/landing'); // Redirect to landing page after logout
+  } catch (error) {
+    console.error('Error logging out:', error);
+  }
+};
+
+const routes = [
+  { path: '/admin-dashboard', name: 'Dashboard' },
+  { path: '/products', name: 'Products' },
+  { path: '/services', name: 'Services' },
+  { path: '/clients', name: 'Clients' },
+  { path: '/appointments', name: 'Appointments' },
+  { path: '/calendar', name: 'Calendar' },
+  { path: '/analytics', name: 'Analytics' },
+  { path: '/settings', name: 'Settings' },
+];
+</script>

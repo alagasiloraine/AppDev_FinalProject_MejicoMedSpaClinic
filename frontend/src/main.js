@@ -23,7 +23,7 @@ auth.onAuthStateChanged(async (user) => {
     }
   } else {
     // If no user is logged in, redirect to login page
-    router.push('/login');
+    router.push('/landing');
   }
   app.mount('#app'); // Mount the app after auth check
 });

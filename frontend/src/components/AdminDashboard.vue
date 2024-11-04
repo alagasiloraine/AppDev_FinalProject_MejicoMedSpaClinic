@@ -1,4 +1,4 @@
-<!-- src/views/Dashboard.vue -->
+src/views/Dashboard.vue
 <template>
   <div class="p-8">
     <h2 class="text-2xl font-bold mb-6">Dashboard</h2>

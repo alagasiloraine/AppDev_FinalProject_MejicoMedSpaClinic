@@ -9,13 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vuelidate/core": "^2.0.3",
+    "@vuelidate/validators": "^2.0.4",
     "@vuepic/vue-datepicker": "^9.0.3",
     "axios": "^1.7.7",
     "firebase": "^11.0.1",
     "lucide-vue-next": "^0.453.0",
+    "swiper": "^11.1.14",
     "vue": "^3.5.12",
     "vue-cal": "^4.10.0",
-    "vue-toastification": "^2.0.0-rc.5"
+    "vue-toastification": "^2.0.0-rc.5",
+    "vuelidate": "^0.7.7"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.1.4",
