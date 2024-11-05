@@ -7,25 +7,7 @@
       <span class="block sm:inline">{{ error }}</span>
     </div>
 
-    <!-- Search Bar -->
-    <div class="mb-8">
-      <!-- <input v-model="searchEmail" type="text" placeholder="Search by email" class="p-2 border rounded mr-2"> -->
-      <select v-model="searchMonth" class="p-2 border rounded mr-2">
-        <option value="">Select month</option>
-        <option v-for="(month, index) in months" :key="index" :value="index + 1">{{ month }}</option>
-      </select>
-      <input v-model="searchTreatment" type="text" placeholder="Search by treatment" class="p-2 border rounded mr-2">
-      <button @click="applyFilters" class="bg-purple-600 text-white px-4 py-2 rounded">Search</button>
-      <button @click="resetFilters" class="bg-gray-300 text-black px-4 py-2 rounded ml-2">Reset</button>
-    </div>
 
-    <!-- Appointment Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <div v-for="stat in appointmentStats" :key="stat.label" class="bg-white p-4 rounded-lg shadow">
-        <h3 class="text-sm text-gray-500 mb-2">{{ stat.label }}</h3>
-        <p class="text-3xl font-bold text-purple-600">{{ stat.value }}</p>
-      </div>
-    </div>
 
     <!-- All Appointments Table -->
     <div class="bg-white p-4 rounded-lg shadow mb-8">
@@ -88,14 +70,8 @@ const error = ref(null);
 const searchEmail = ref('');
 const searchMonth = ref('');
 const searchTreatment = ref('');
-const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const appointmentStats = computed(() => [
-  { label: 'Total Appointments', value: appointments.value.length },
-  { label: 'Approved', value: appointments.value.filter(a => a.status === 'approved').length },
-  { label: 'Pending', value: appointments.value.filter(a => a.status === 'pending').length },
-  { label: 'Rejected', value: appointments.value.filter(a => a.status === 'rejected').length },
-]);
+
 
 const fetchAppointments = async () => {
   loading.value = true;
@@ -176,11 +152,6 @@ const filteredAppointments = computed(() => {
 
 
 
-const resetFilters = () => {
-  searchEmail.value = '';
-  searchMonth.value = '';
-  searchTreatment.value = '';
-};
 
 onMounted(() => {
   fetchAppointments();

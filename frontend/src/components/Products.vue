@@ -1,6 +1,6 @@
 <template>
   <div class="p-8">
-    <h2 class="text-2xl font-bold mb-6">Product Management</h2>
+    <h2 class="text-2xl font-bold mb-6">Product List</h2>
 
     <div v-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
       <strong class="font-bold">Error:</strong>
@@ -15,57 +15,31 @@
       </div>
     </div>
 
-    <!-- Add/Edit Product Form -->
-    <div class="bg-white p-4 rounded-lg shadow mb-8">
-      <h3 class="text-lg font-semibold mb-4">{{ editingProduct ? 'Edit Product' : 'Add New Product' }}</h3>
-      <form @submit.prevent="saveProduct" class="space-y-4">
-        <div>
-          <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
-          <input v-model="currentProduct.name" id="name" type="text" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50">
-        </div>
-        <div>
-          <label for="price" class="block text-sm font-medium text-gray-700">Price</label>
-          <input v-model="currentProduct.price" id="price" type="number" step="0.01" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50">
-        </div>
-        <div>
-          <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
-          <input v-model="currentProduct.category" id="category" type="text" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50">
-        </div>
-        <div>
-          <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2">
-            {{ editingProduct ? 'Update Product' : 'Add Product' }}
-          </button>
-          <button v-if="editingProduct" @click="cancelEdit" type="button" class="ml-2 bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-
     <!-- Product List -->
     <div class="bg-white p-4 rounded-lg shadow">
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-lg font-semibold">Product List</h3>
       </div>
-      <div class="overflow-x-auto">
+      <div v-if="loading" class="text-center py-4">
+        <p class="text-gray-500">Loading products...</p>
+      </div>
+      <div v-else-if="products.length === 0" class="text-center py-4">
+        <p class="text-gray-500">No products found.</p>
+      </div>
+      <div v-else class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="text-left text-gray-500">
               <th class="pb-2">Name</th>
               <th class="pb-2">Price</th>
               <th class="pb-2">Category</th>
-              <th class="pb-2">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="product in products" :key="product.id">
-              <td class="py-2">{{ product.name }}</td>
-              <td>{{ product.price.toFixed(2) }}</td>
-              <td>{{ product.category }}</td>
-              <td>
-                <button @click="editProduct(product)" class="text-blue-500 hover:text-blue-700 mr-2">Edit</button>
-                <button @click="deleteProduct(product.id)" class="text-red-500 hover:text-red-700">Delete</button>
-              </td>
+            <tr v-for="product in products" :key="product.id" class="border-b border-gray-200 last:border-b-0">
+              <td class="py-3">{{ product.name }}</td>
+              <td class="py-3">₱{{ product.price.toFixed(2) }}</td>
+              <td class="py-3">{{ product.category }}</td>
             </tr>
           </tbody>
         </table>
@@ -77,12 +51,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 
 const products = ref([]);
+const loading = ref(true);
 const error = ref(null);
-const currentProduct = ref({ name: '', price: 0, category: '' });
-const editingProduct = ref(null);
 
 const productStats = computed(() => {
   const totalProducts = products.value.length;
@@ -92,68 +65,115 @@ const productStats = computed(() => {
   return [
     { label: 'Total Products', value: totalProducts },
     { label: 'Categories', value: categories.length },
-    { label: 'Total Value', value: `${totalValue.toFixed(2)}` },
+    { label: 'Total Value', value: `₱${totalValue.toFixed(2)}` },
   ];
 });
 
 const fetchProducts = async () => {
+  loading.value = true;
+  error.value = null;
   try {
     const querySnapshot = await getDocs(collection(db, 'products'));
     products.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    products.value.sort((a, b) => a.name.localeCompare(b.name)); // Sort products alphabetically by name
   } catch (err) {
     error.value = 'Error loading products: ' + err.message;
     console.error(error.value);
+  } finally {
+    loading.value = false;
   }
 };
 
-const saveProduct = async () => {
-  try {
-    if (editingProduct.value) {
-      await updateDoc(doc(db, 'products', editingProduct.value), {
-        name: currentProduct.value.name,
-        price: Number(currentProduct.value.price),
-        category: currentProduct.value.category,
-      });
-    } else {
-      await addDoc(collection(db, 'products'), {
-        name: currentProduct.value.name,
-        price: Number(currentProduct.value.price),
-        category: currentProduct.value.category,
-      });
-    }
-    await fetchProducts();
-    resetForm();
-  } catch (err) {
-    error.value = 'Error saving product: ' + err.message;
-    console.error(error.value);
-  }
-};
-
-const editProduct = (product) => {
-  currentProduct.value = { ...product };
-  editingProduct.value = product.id;
-};
-
-const cancelEdit = () => {
-  resetForm();
-};
-
-const deleteProduct = async (productId) => {
-  if (confirm('Are you sure you want to delete this product?')) {
-    try {
-      await deleteDoc(doc(db, 'products', productId));
-      await fetchProducts();
-    } catch (err) {
-      error.value = 'Error deleting product: ' + err.message;
-      console.error(error.value);
-    }
-  }
-};
-
-const resetForm = () => {
-  currentProduct.value = { name: '', price: 0, category: '' };
-  editingProduct.value = null;
-};
-
-onMounted(fetchProducts);
+onMounted(() => {
+  fetchProducts();
+});
 </script>
+
+<style scoped>
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.bg-white {
+  background-color: white;
+}
+
+.shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.p-4 {
+  padding: 1rem;
+}
+
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+.mb-8 {
+  margin-bottom: 2rem;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.text-purple-600 {
+  color: #7c3aed;
+}
+
+.text-gray-500 {
+  color: #6b7280;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th {
+  font-weight: 600;
+}
+
+td, th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+}
+
+tr:hover {
+  background-color: #f9fafb;
+}
+</style>

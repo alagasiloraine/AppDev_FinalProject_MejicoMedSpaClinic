@@ -7,13 +7,6 @@
       <span class="block sm:inline">{{ error }}</span>
     </div>
 
-    <!-- Patient Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <div v-for="stat in patientStats" :key="stat.label" class="bg-white p-4 rounded-lg shadow">
-        <h3 class="text-sm text-gray-500 mb-2">{{ stat.label }}</h3>
-        <p class="text-3xl font-bold text-purple-600">{{ stat.value }}</p>
-      </div>
-    </div>
 
     <!-- Patient List -->
     <div class="bg-white p-4 rounded-lg shadow">
@@ -100,17 +93,6 @@ const clients = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const selectedClient = ref(null);
-
-const patientStats = computed(() => [
-  { label: 'Total Approved Clients', value: clients.value.length },
-  { label: 'Total Appointments', value: clients.value.reduce((sum, client) => sum + client.appointments.length, 0) },
-  { label: 'Clients with Multiple Visits', value: clients.value.filter(client => client.appointments.length > 1).length },
-  { label: 'New Clients (Last Month)', value: clients.value.filter(client => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    return client.lastVisit > oneMonthAgo;
-  }).length },
-]);
 
 const fetchApprovedClients = async () => {
   loading.value = true;

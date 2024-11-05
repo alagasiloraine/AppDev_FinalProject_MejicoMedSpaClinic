@@ -30,8 +30,8 @@ exports.addAdminRole = functions.https.onCall((data, context) => {
 
 // Function to create a default admin user
 const createDefaultAdmin = async () => {
-  const email = 'admin@gmail.com';
-  const password = '1234Admin';
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
 
   try {
     // Create a new user in Firebase Authentication
