@@ -16,12 +16,12 @@
     </div>
 
     <!-- Submenus -->
-    <div class="mb-8">
+    <!-- <div class="mb-8">
       <button @click="activeSubmenu = 'view'" class="bg-purple-600 text-white px-4 py-2 rounded mr-2 hover:bg-purple-700">View Inventory</button>
       <button @click="activeSubmenu = 'add'" class="bg-purple-600 text-white px-4 py-2 rounded mr-2 hover:bg-purple-700">Add Stock</button>
       <button @click="activeSubmenu = 'out'" class="bg-purple-600 text-white px-4 py-2 rounded mr-2 hover:bg-purple-700">Stock Out</button>
       <button @click="activeSubmenu = 'alerts'" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Low Stock Alerts</button>
-    </div>
+    </div> -->
 
     <!-- Add Stock Form -->
     <div v-if="activeSubmenu === 'add'" class="bg-white p-4 rounded-lg shadow mb-8">
@@ -58,7 +58,7 @@
     </div>
 
     <!-- Stock Out Form -->
-    <div v-if="activeSubmenu === 'out'" class="bg-white p-4 rounded-lg shadow mb-8">
+    <!-- <div v-if="activeSubmenu === 'out'" class="bg-white p-4 rounded-lg shadow mb-8">
       <h3 class="text-lg font-semibold mb-4">Stock Out</h3>
       <form @submit.prevent="stockOut">
         <div class="mb-4">
@@ -81,7 +81,7 @@
           Stock Out
         </button>
       </form>
-    </div>
+    </div> -->
 
     <!-- View Inventory -->
     <div v-if="activeSubmenu === 'view'" class="bg-white p-4 rounded-lg shadow">
@@ -100,6 +100,7 @@
               <th class="pb-2">Quantity</th>
               <th class="pb-2">Price</th>
               <th class="pb-2">Category</th>
+              <th class="pb-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -108,6 +109,14 @@
               <td class="py-3">{{ product.quantity }}</td>
               <td class="py-3">₱{{ product.price.toFixed(2) }}</td>
               <td class="py-3">{{ product.category }}</td>
+              <td class="py-3">
+                <button @click="editProduct(product)" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded mr-2">
+                  Edit
+                </button>
+                <button @click="deleteProduct(product.id)" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">
+                  Delete
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -115,7 +124,7 @@
     </div>
 
     <!-- Low Stock Alerts -->
-    <div v-if="activeSubmenu === 'alerts'" class="bg-white p-4 rounded-lg shadow">
+    <!-- <div v-if="activeSubmenu === 'alerts'" class="bg-white p-4 rounded-lg shadow">
       <h3 class="text-lg font-semibold mb-4">Low Stock Alerts</h3>
       <div v-if="lowStockItems.length === 0" class="text-center py-4">
         <p class="text-gray-500">No low stock items.</p>
@@ -136,6 +145,47 @@
           </tbody>
         </table>
       </div>
+    </div> -->
+
+    <!-- Edit Product Modal -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-semibold mb-4">Edit Product</h3>
+        <form @submit.prevent="updateProduct">
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="editName">
+              Product Name
+            </label>
+            <input v-model="editingProduct.name" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="editName" type="text" required>
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="editQuantity">
+              Quantity
+            </label>
+            <input v-model.number="editingProduct.quantity" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="editQuantity" type="number" required>
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="editPrice">
+              Price
+            </label>
+            <input v-model.number="editingProduct.price" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="editPrice" type="number" step="0.01" required>
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="editCategory">
+              Category
+            </label>
+            <input v-model="editingProduct.category" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="editCategory" type="text" required>
+          </div>
+          <div class="flex justify-end">
+            <button type="button" @click="showEditModal = false" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">
+              Cancel
+            </button>
+            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
+              Update
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -143,7 +193,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const inventory = ref([]);
 const loading = ref(true);
@@ -153,6 +203,9 @@ const activeSubmenu = ref('view');
 const newStock = ref({ name: '', quantity: 0, price: 0, category: '' });
 const stockOutProduct = ref('');
 const stockOutQuantity = ref(0);
+
+const showEditModal = ref(false);
+const editingProduct = ref({});
 
 const inventoryStats = computed(() => {
   const totalItems = inventory.value.length;
@@ -206,12 +259,47 @@ const stockOut = async () => {
       const newQuantity = Math.max(0, product.quantity - stockOutQuantity.value);
       await updateDoc(productRef, { quantity: newQuantity });
       await fetchInventory();
+      
       stockOutProduct.value = '';
       stockOutQuantity.value = 0;
     }
   } catch (err) {
     error.value = 'Error updating stock: ' + err.message;
     console.error(error.value);
+  }
+};
+
+const editProduct = (product) => {
+  editingProduct.value = { ...product };
+  showEditModal.value = true;
+};
+
+const updateProduct = async () => {
+  try {
+    const productRef = doc(db, 'products', editingProduct.value.id);
+    await updateDoc(productRef, {
+      name: editingProduct.value.name,
+      quantity: editingProduct.value.quantity,
+      price: editingProduct.value.price,
+      category: editingProduct.value.category
+    });
+    await fetchInventory();
+    showEditModal.value = false;
+  } catch (err) {
+    error.value = 'Error updating product: ' + err.message;
+    console.error(error.value);
+  }
+};
+
+const deleteProduct = async (productId) => {
+  if (confirm('Are you sure you want to delete this product?')) {
+    try {
+      await deleteDoc(doc(db, 'products', productId));
+      await fetchInventory();
+    } catch (err) {
+      error.value = 'Error deleting product: ' + err.message;
+      console.error(error.value);
+    }
   }
 };
 

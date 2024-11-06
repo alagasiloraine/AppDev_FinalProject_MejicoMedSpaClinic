@@ -50,8 +50,8 @@ const routes = [
   { 
     name: 'Inventory & Products',
     submenu: [
-      { path: '/product-catalog', name: 'Product Catalog' },
-      { path: '/inventory-management', name: 'Inventory Management' },
+      // { path: '/product-catalog', name: 'Product Catalog' },
+      { path: '/inventory', name: 'Inventory Management' },
       { path: '/stock-forecasting', name: 'Stock Forecasting' },
     ]
   },
