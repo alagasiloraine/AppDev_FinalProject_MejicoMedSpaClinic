@@ -43,14 +43,14 @@ const routes = [
   { 
     name: 'Services & Treatments',
     submenu: [
-      { path: '/services', name: 'Service Catalog' },
+      { path: '/services', name: 'Treatment Management' },
       { path: '/treatment-packages', name: 'Treatment Packages' },
     ]
   },
   { 
     name: 'Inventory & Products',
     submenu: [
-      // { path: '/product-catalog', name: 'Product Catalog' },
+      { path: '/products', name: 'Product Lists' },
       { path: '/inventory', name: 'Inventory Management' },
       { path: '/stock-forecasting', name: 'Stock Forecasting' },
     ]
