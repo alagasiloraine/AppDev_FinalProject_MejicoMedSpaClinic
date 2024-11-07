@@ -43,8 +43,9 @@ const routes = [
   { 
     name: 'Services & Treatments',
     submenu: [
-      { path: '/services', name: 'Treatment Management' },
-      { path: '/treatment-packages', name: 'Treatment Packages' },
+      { path: '/treatments', name: 'Treatment Management' },
+      { path: '/services', name: 'Service Management' },
+      { path: '/servicelist', name: 'Treatment Packages' },
     ]
   },
   { 

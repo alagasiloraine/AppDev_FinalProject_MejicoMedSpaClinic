@@ -4,6 +4,9 @@ import Products from '../components/Products.vue';
 import Profiles from '../components/Profiles.vue';
 import Inventory from '../components/Inventory.vue';
 import Services from '../components/Services.vue';
+import Treatments from '../components/Treatments.vue';
+import TreatmentLists from '../components/TreatmentLists.vue';
+
 import Clients from '../components/Clients.vue';
 import Appointments from '../components/Appointments.vue';
 import Calendar from '../components/Calendar.vue';
@@ -15,6 +18,8 @@ export default [
   { path: '/products', component: Products, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/inventory', component: Inventory, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/services', component: Services, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/treatments', component: Treatments, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/servicelist', component: TreatmentLists, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/clients', component: Clients, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/profiles', component: Profiles, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/appointments', component: Appointments, meta: { requiresAuth: true, requiresAdmin: true } },
