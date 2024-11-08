@@ -48,7 +48,7 @@
               {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
             </button>
           </div>
-  
+          
           <!-- View Appointments -->
           <div v-if="mode === 'view'" class="appointments-list custom-scrollbar">
             <h2>Your Appointments</h2>
@@ -88,31 +88,17 @@
           <!-- Book or Update Appointment -->
           <div v-if="mode === 'book' || mode === 'update'" class="booking-form">
             <!-- Service Selection -->
-            <div class="service-selection">
-              <h3>Select Services</h3>
-              <div class="service-options">
-                <div
-                  v-for="service in services"
-                  :key="service.id"
-                  class="service-option"
-                  :class="{ selected: selectedServices[service.id] > 0 }"
-                >
-                  <button @click="incrementService(service.id)" class="service-button">
-                    <component :is="service.icon" class="service-icon" />
-                    <p>{{ service.name }}</p>
-                    <span class="service-price">₱{{ service.price.toLocaleString('en-PH') }}</span>
-                  </button>
-                  <div v-if="selectedServices[service.id] > 0" class="service-count">
-                    {{ selectedServices[service.id] }}
-                  </div>
-                  <button 
-                    v-if="selectedServices[service.id] > 0"
-                    @click="decrementService(service.id)"
-                    class="decrement-button"
-                  >
-                    <MinusIcon class="icon" />
-                  </button>
-                </div>
+            <div class="service-options">
+              <div
+                v-for="service in uniqueServices"
+                :key="service.id"
+                class="service-option"
+                :class="{ selected: selectedServices[service.id] > 0 }"
+              >
+                <button @click="showTreatmentList(service)" class="service-button">
+                  <component :is="service.icon" class="service-icon" />
+                  <p>{{ service.name }}</p>
+                </button>
               </div>
             </div>
   
@@ -149,7 +135,56 @@
         </div>
       </div>
     </div>
-
+  
+    <!-- Treatment List Modal -->
+    <div v-if="isTreatmentListModalVisible" class="modal-overlay" @click="closeTreatmentListModal">
+      <div class="modal treatment-list-modal" @click.stop>
+        <div class="modal-header">
+          <h3>{{ selectedService?.name }} Services</h3>
+          <button @click="closeTreatmentListModal" class="close-button">
+            <XIcon class="icon" />
+          </button>
+        </div>
+        
+        <div class="modal-body">
+        <div v-if="isLoadingTreatments" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading treatments...</p>
+        </div>
+        
+        <div v-if="!isLoadingTreatments && treatments.length === 0">
+          <p>No treatments available for this service.</p>
+        </div>
+        
+        <div v-else class="treatments-grid">
+          <div 
+            v-for="treatment in treatments" 
+            :key="treatment.id"
+            class="treatment-card"
+            @click="selectTreatment(treatment)"
+          >
+              <div class="treatment-icon-wrapper">
+                <component :is="getServiceIcon(selectedService?.name)" class="treatment-icon" />
+              </div>
+              
+              <div class="treatment-content">
+                <h4>{{ treatment.name }}</h4>
+                <p class="treatment-description">{{ treatment.description || 'Experience our professional service.' }}</p>
+                <div class="treatment-price">₱{{ treatment.price.toLocaleString('en-PH') }}</div>
+              </div>
+              
+              <div class="treatment-footer">
+                <button class="select-treatment-button">
+                  <PlusIcon class="icon" />
+                  Select
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  
     <!-- Summary Modal -->
     <div v-if="isSummaryModalVisible" class="modal-overlay" @click="closeSummaryModal">
       <div class="modal" @click.stop>
@@ -164,8 +199,8 @@
                   <div v-for="(count, serviceId) in selectedServices" :key="serviceId" class="service-item">
                     <div class="service-info">
                       <div class="service-name-duration">
-                        <span class="service-name">{{ getServiceName(parseInt(serviceId)) }}</span>
-                        <span class="service-duration">({{ formatDuration(getServiceDuration(parseInt(serviceId)) * count) }})</span>
+                        <span class="service-name">{{ getServiceName(serviceId) }}</span>
+                        <!-- <span class="service-duration">({{ formatDuration(getServiceDuration(serviceId) * count) }})</span> -->
                       </div>
                       <div class="service-details">
                         <span class="service-quantity">x{{ count }}</span>
@@ -179,10 +214,10 @@
               </div>
               <div class="summary-divider"></div>
               <div class="summary-totals">
-                <div class="total-row">
+                <!-- <div class="total-row">
                   <span>Total Duration:</span>
                   <span class="highlight">{{ formatDuration(totalDuration) }}</span>
-                </div>
+                </div> -->
                 <div class="total-row">
                   <span>Total Price:</span>
                   <span class="highlight price-highlight">₱{{ totalPrice.toLocaleString('en-PH') }}</span>
@@ -212,7 +247,7 @@
         </div>
       </div>
     </div>
-
+  
     <!-- Confirmation Modal -->
     <div v-if="isConfirmationModalVisible" class="modal-overlay" @click.self="isConfirmationModalVisible = false">
       <div class="modal confirmation-modal">
@@ -229,7 +264,7 @@
         </div>
       </div>
     </div>
-
+  
     <!-- Cancellation Modal -->
     <div v-if="isCancellationModalVisible" class="modal-overlay" @click.self="isCancellationModalVisible = false">
       <div class="modal confirmation-modal">
@@ -249,11 +284,13 @@
     
     <FooterComponent />
   </div>
-</template>
-
-<script setup>
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
-import { 
+  </template>
+  
+  <script setup>
+  import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+  import Navbar from './Navbar.vue';
+  import FooterComponent from './Footer.vue';
+  import { 
   collection, 
   addDoc,
   getDocs,
@@ -261,12 +298,12 @@ import {
   doc,
   query,
   where,
-  serverTimestamp
-} from 'firebase/firestore';
-import { auth, firestore } from '../firebase';
-import FooterComponent from './Footer.vue';
-import Navbar from './Navbar.vue';
-import { 
+  serverTimestamp,
+  onSnapshot
+  } from 'firebase/firestore';
+  import { auth, database } from '../firebase';
+  import { useRouter } from 'vue-router';
+  import { 
   CalendarPlusIcon, 
   RefreshCwIcon, 
   StethoscopeIcon, 
@@ -277,412 +314,525 @@ import {
   PencilIcon,
   XIcon,
   CheckIcon,
-  MinusIcon
-} from 'lucide-vue-next';
+  MinusIcon,
+  PlusIcon,
+  Scissors
+  } from 'lucide-vue-next';
+  
+  const router = useRouter();
+  
+  const selectedDate = ref(new Date());
+  const currentMonth = ref(new Date());
+  const selectedServices = ref({});
+  const selectedTime = ref('');
+  const mode = ref('book');
+  const selectedAppointment = ref(null);
+  const appointments = ref([]);
+  const unavailableTimeSlots = ref([]);
+  const availableTimeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  const isSummaryModalVisible = ref(false);
+  const isConfirmationModalVisible = ref(false);
+  const confirmationStatus = ref('');
+  const isCancellationModalVisible = ref(false);
+  const cancellationStatus = ref('');
+  
+  const services = ref([]);
+  
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  // New refs for treatment list modal
+  const isTreatmentListModalVisible = ref(false);
+  const selectedService = ref(null);
+  const treatments = ref([]);
+  const isLoadingTreatments = ref(false);
+  const loadingTreatments = ref(true);
 
-const selectedDate = ref(new Date());
-const currentMonth = ref(new Date());
-const selectedServices = ref({});
-const selectedTime = ref('');
-const mode = ref('book');
-const selectedAppointment = ref(null);
-const appointments = ref([]);
-const unavailableTimeSlots = ref([]);
-const availableTimeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
-const isSummaryModalVisible = ref(false);
-const isConfirmationModalVisible = ref(false);
-const confirmationStatus = ref('');
-const isCancellationModalVisible = ref(false);
-const cancellationStatus = ref('');
-
-const services = [
-  { id: 1, name: 'Checkup', duration: 60, price: 80, icon: StethoscopeIcon },
-  { id: 2, name: 'Massage', duration: 90, price: 120, icon: DropletIcon },
-  { id: 3, name: 'Manicure', duration: 45, price: 40, icon: HandIcon },
-  { id: 4, name: 'Pedicure', duration: 60, price: 50, icon: ScissorsIcon },
-  { id: 5, name: 'Hair Removal', duration: 30, price: 60, icon: ZapIcon }
-];
-
-const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const currentMonthYear = computed(() => {
-  return currentMonth.value.toLocaleString('default', { month: 'long', year: 'numeric' });
-});
-
-const calendarDays = computed(() => {
-  const year = currentMonth.value.getFullYear();
-  const month = currentMonth.value.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
-
-  const days = [];
-
-  // Add days from previous month
-  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-    const date = new Date(year, month, -i);
-    days.push({
-      date,
-      isCurrentMonth: false,
-      isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
-      isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
-      isDisabled: date < new Date()
-    });
-  }
-
-  // Add days of current month
-  for (let i = 1; i <= daysInMonth; i++) {
-    const date = new Date(year, month, i);
-    days.push({
-      date,
-      isCurrentMonth: true,
-      isSelected: isSameDate(date, selectedDate.value),
-      isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
-      isDisabled: date < new Date()
-    });
-  }
-
-  // Add days from next month
-  const remainingDays = 42 - days.length; // 6 rows * 7 days = 42
-  for (let i = 1; i <= remainingDays; i++) {
-    const date = new Date(year, month + 1, i);
-    days.push({
-      date,
-      isCurrentMonth: false,
-      isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
-      isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
-      isDisabled: date < new Date()
-    });
-  }
-
-  return days;
-});
-
-function isSameDate(date1, date2) {
-  return date1.getFullYear() === date2.getFullYear() &&
-        date1.getMonth() === date2.getMonth() &&
-        date1.getDate() === date2.getDate();
-}
-
-function previousMonth() {
-  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
-}
-
-function nextMonth() {
-  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
-}
-
-function selectDate(date) {
-  selectedDate.value = date;
-  updateUnavailableTimeSlots();
-}
-
-const confirmAppointment = async () => {
-  if (!isFormValid.value) {
-    console.error('Form validation failed');
-    return;
-  }
-
-  try {
-    isConfirmationModalVisible.value = true;
-    confirmationStatus.value = 'confirming';
-
-    // Create appointment data
-    const appointmentData = {
-      userId: auth.currentUser?.uid,
-      userEmail: auth.currentUser?.email,
-      services: Object.entries(selectedServices.value).flatMap(([id, count]) => 
-        Array(count).fill(services.find(s => s.id === parseInt(id))?.name)
-      ),
-      date: selectedDate.value.toISOString().split('T')[0],
-      time: selectedTime.value,
-      price: totalPrice.value,
-      duration: totalDuration.value,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    if (mode.value === 'book') {
-      // Add new appointment
-      const appointmentsRef = collection(firestore, 'appointments');
-      const appointmentDoc = await addDoc(appointmentsRef, appointmentData);
-      console.log('New appointment created with ID:', appointmentDoc.id);
-
-      // Add reference to user's appointments subcollection
-      if (auth.currentUser) {
-        const userAppointmentsRef = collection(
-          firestore, 
-          'authUsers', 
-          auth.currentUser.uid, 
-          'appointments'
-        );
-        
-        await addDoc(userAppointmentsRef, {
-          appointmentId: appointmentDoc.id,
-          createdAt: serverTimestamp()
-        });
-      }
-    } else if (mode.value === 'update' && selectedAppointment.value) {
-      const appointmentRef = doc(firestore, 'appointments', selectedAppointment.value.id);
-      await updateDoc(appointmentRef, {
-        ...appointmentData,
-        updatedAt: serverTimestamp()
+  const currentMonthYear = computed(() => {
+    return currentMonth.value.toLocaleString('default', { month: 'long', year: 'numeric' });
+  });
+  
+  const calendarDays = computed(() => {
+    const year = currentMonth.value.getFullYear();
+    const month = currentMonth.value.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+  
+    const days = [];
+  
+    // Add days from previous month
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      const date = new Date(year, month, -i);
+      days.push({
+        date,
+        isCurrentMonth: false,
+        isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
+        isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
+        isDisabled: date < new Date()
       });
     }
-
-    confirmationStatus.value = 'confirmed';
-    await fetchAppointments(); // Refresh the appointments list
-
-    setTimeout(() => {
-      isConfirmationModalVisible.value = false;
-      closeSummaryModal();
-      setMode('view');
-    }, 2000);
-
-  } catch (error) {
-    console.error('Error saving appointment:', error);
-    confirmationStatus.value = 'error';
-    alert('Failed to save appointment. Please try again.');
-  }
-};
-
-const fetchAppointments = async () => {
-  if (!auth.currentUser) {
-    console.log('No authenticated user');
-    return;
-  }
-
-  try {
-    const appointmentsRef = collection(firestore, 'appointments');
-    const q = query(
-      appointmentsRef, 
-      where('userId', '==', auth.currentUser.uid)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    appointments.value = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    console.log('Fetched appointments:', appointments.value);
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-  }
-};
-
-const cancelAppointment = async (appointmentId) => {
-  if (!auth.currentUser) {
-    console.log('No authenticated user');
-    return;
-  }
-
-  try {
-    isCancellationModalVisible.value = true;
-    cancellationStatus.value = 'cancelling';
-
-    // Simulate a delay of 3 seconds
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    const appointmentRef = doc(firestore, 'appointments', appointmentId);
-    await updateDoc(appointmentRef, {
-      status: 'pending cancellation',
-      updatedAt: serverTimestamp()
-    });
-
-    const cancellationRef = collection(firestore, 'cancellation_requests');
-    await addDoc(cancellationRef, {
-      appointmentId,
-      userId: auth.currentUser.uid,
-      userEmail: auth.currentUser.email,
-      status: 'pending',
-      requestedAt: serverTimestamp()
-    });
-
-    await fetchAppointments();
-    cancellationStatus.value = 'cancelled';
-
-    // Close the modal after 2 seconds
-    setTimeout(() => {
-      isCancellationModalVisible.value = false;
-      cancellationStatus.value = '';
-    }, 2000);
-
-  } catch (error) {
-    console.error('Error processing cancellation:', error);
-    cancellationStatus.value = 'error';
-    setTimeout(() => {
-      isCancellationModalVisible.value = false;
-      cancellationStatus.value = '';
-    }, 2000);
-  }
-};
-
-const selectTimeSlot = (slot) => {
-  if (!disableSlot(slot)) {
-    selectedTime.value = slot;
-  }
-};
-
-const getServiceIcon = (serviceName) => {
-  const service = services.find(s => s.name === serviceName);
-  return service ? service.icon : StethoscopeIcon;
-};
-
-const updateUnavailableTimeSlots = () => {
-  if (!selectedDate.value) return;
-
-  const formattedDate = selectedDate.value.toISOString().split('T')[0];
-  unavailableTimeSlots.value = appointments.value
-    .filter(appointment => appointment.date === formattedDate)
-    .map(appointment => appointment.time);
-};
-
-const disableSlot = (slot) => {
-  return unavailableTimeSlots.value.includes(slot);
-};
-
-const setMode = (newMode) => {
-  mode.value = newMode;
-  if (newMode === 'view') {
-    fetchAppointments();
-    clearSelection();
-  }
-};
-
-const clearSelection = () => {
-  selectedServices.value = {};
-  selectedTime.value = null;
-  selectedAppointment.value = null;
-};
-
-const selectAppointment = (appointment) => {
-  selectedAppointment.value = appointment;
-  mode.value = 'update';
-  selectedServices.value = appointment.services.reduce((acc, service) => {
-    const serviceObj = services.find(s => s.name === service);
-    if (serviceObj) {
-      acc[serviceObj.id] = (acc[serviceObj.id] || 0) + 1;
+  
+    // Add days of current month
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(year, month, i);
+      days.push({
+        date,
+        isCurrentMonth: true,
+        isSelected: isSameDate(date, selectedDate.value),
+        isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
+        isDisabled: date < new Date()
+      });
     }
-    return acc;
-  }, {});
-  selectedDate.value = new Date(appointment.date);
-  currentMonth.value = new Date(appointment.date);
-  selectedTime.value = appointment.time;
-  updateCalendarHighlight();
-};
-
-const highlightAppointmentDate = (appointment) => {
-  selectedAppointment.value = appointment;
-  selectedDate.value = new Date(appointment.date);
-  currentMonth.value = new Date(appointment.date);
-  // Don't change mode, just update calendar highlight
-  updateCalendarHighlight();
-};
-
-const updateCalendarHighlight = () => {
-  // Force re-computation of calendarDays
-  currentMonth.value = new Date(currentMonth.value);
-};
-
-const showSummaryModal = () => {
-  if (isFormValid.value) {
-    isSummaryModalVisible.value = true;
+  
+    // Add days from next month
+    const remainingDays = 42 - days.length; // 6 rows * 7 days = 42
+    for (let i = 1; i <= remainingDays; i++) {
+      const date = new Date(year, month + 1, i);
+      days.push({
+        date,
+        isCurrentMonth: false,
+        isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
+        isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
+        isDisabled: date < new Date()
+      });
+    }
+  
+    return days;
+  });
+  
+  const uniqueServices = computed(() => {
+    const uniqueMap = new Map();
+    services.value.forEach(service => {
+      if (!uniqueMap.has(service.name)) {
+        uniqueMap.set(service.name, {
+          ...service,
+          id: service.id // Use the original ID without modification
+        });
+      }
+    });
+    return Array.from(uniqueMap.values());
+  });
+  
+  function isSameDate(date1, date2) {
+    return date1.getFullYear() === date2.getFullYear() &&
+          date1.getMonth() === date2.getMonth() &&
+          date1.getDate() === date2.getDate();
   }
-};
-
-const closeSummaryModal = () => {
-  isSummaryModalVisible.value = false;
-};
-
-const incrementService = (serviceId) => {
-  selectedServices.value = {
-    ...selectedServices.value,
-    [serviceId]: (selectedServices.value[serviceId] || 0) + 1
+  
+  function previousMonth() {
+    currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
+  }
+  
+  function nextMonth() {
+    currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
+  }
+  
+  function selectDate(date) {
+    selectedDate.value = date;
+    updateUnavailableTimeSlots();
+  }
+  
+  const confirmAppointment = async () => {
+    if (!isFormValid.value) {
+      console.error('Form validation failed');
+      return;
+    }
+  
+    try {
+      isConfirmationModalVisible.value = true;
+      confirmationStatus.value = 'confirming';
+  
+      // Create appointment data
+      const appointmentData = {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        services: Object.entries(selectedServices.value).flatMap(([id, count]) => 
+          Array(count).fill(services.value.find(s => s.id === id)?.name)
+        ),
+        date: selectedDate.value.toISOString().split('T')[0],
+        time: selectedTime.value,
+        price: totalPrice.value,
+        duration: totalDuration.value,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+  
+      if (mode.value === 'book') {
+        // Add new appointment
+        const appointmentsRef = collection(database, 'appointments');
+        const appointmentDoc = await addDoc(appointmentsRef, appointmentData);
+        console.log('New appointment created with ID:', appointmentDoc.id);
+  
+        // Add reference to user's appointments subcollection
+        if (auth.currentUser) {
+          const userAppointmentsRef = collection(
+            database, 
+            'users', 
+            auth.currentUser.uid, 
+            'appointments'
+          );
+          
+          await addDoc(userAppointmentsRef, {
+            appointmentId: appointmentDoc.id,
+            createdAt: serverTimestamp()
+          });
+        }
+      } else if (mode.value === 'update' && selectedAppointment.value) {
+        const appointmentRef = doc(database, 'appointments', selectedAppointment.value.id);
+        await updateDoc(appointmentRef, {
+          ...appointmentData,
+          updatedAt: serverTimestamp()
+        });
+      }
+  
+      confirmationStatus.value = 'confirmed';
+      await fetchAppointments(); // Refresh the appointments list
+  
+      setTimeout(() => {
+        isConfirmationModalVisible.value = false;
+        closeSummaryModal();
+        setMode('view');
+      }, 2000);
+  
+    } catch (error) {
+      console.error('Error saving appointment:', error);
+      confirmationStatus.value = 'error';
+      alert('Failed to save appointment. Please try again.');
+    }
   };
-};
-
-const decrementService = (serviceId) => {
-  if (selectedServices.value[serviceId] > 0) {
+  
+  const fetchAppointments = async () => {
+    if (!auth.currentUser) {
+      console.log('No authenticated user');
+      return;
+    }
+  
+    try {
+      const appointmentsRef = collection(database, 'appointments');
+      const q = query(
+        appointmentsRef, 
+        where('userId', '==', auth.currentUser.uid)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      appointments.value = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+  
+      console.log('Fetched appointments:', appointments.value);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+    }
+  };
+  
+  const cancelAppointment = async (appointmentId) => {
+    if (!auth.currentUser) {
+      console.log('No authenticated user');
+      return;
+    }
+  
+    try {
+      isCancellationModalVisible.value = true;
+      cancellationStatus.value = 'cancelling';
+  
+      // Simulate a delay of 3 seconds
+      await new Promise(resolve => setTimeout(resolve, 3000));
+  
+      const appointmentRef = doc(database, 'appointments', appointmentId);
+      await updateDoc(appointmentRef, {
+        status: 'pending cancellation',
+        updatedAt: serverTimestamp()
+      });
+  
+      const cancellationRef = collection(database, 'cancellation_requests');
+      await addDoc(cancellationRef, {
+        appointmentId,
+        userId: auth.currentUser.uid,
+        userEmail: auth.currentUser.email,
+        status: 'pending',
+        requestedAt: serverTimestamp()
+      });
+  
+      await fetchAppointments();
+      cancellationStatus.value = 'cancelled';
+  
+      // Close the modal after 2 seconds
+      setTimeout(() => {
+        isCancellationModalVisible.value = false;
+        cancellationStatus.value = '';
+      }, 2000);
+  
+    } catch (error) {
+      console.error('Error processing cancellation:', error);
+      cancellationStatus.value = 'error';
+      setTimeout(() => {
+        isCancellationModalVisible.value = false;
+        cancellationStatus.value = '';
+      }, 2000);
+    }
+  };
+  
+  const selectTimeSlot = (slot) => {
+    if (!disableSlot(slot)) {
+      selectedTime.value = slot;
+    }
+  };
+  
+  const getIconForService = (serviceName) => {
+    const iconMap = {
+      'Checkup': StethoscopeIcon,
+      'Massage': DropletIcon,
+      'Manicure': HandIcon,
+      'Pedicure': ScissorsIcon,
+      'Hair Removal': ZapIcon,
+      'Hair Care': Scissors,
+      'Hair Cut': Scissors,
+      'Hair Style': Scissors,
+    };
+  
+    return iconMap[serviceName] || StethoscopeIcon;
+  };
+  
+  const getServiceIcon = (serviceName) => {
+    return getIconForService(serviceName);
+  };
+  
+  const updateUnavailableTimeSlots = () => {
+    if (!selectedDate.value) return;
+  
+    const formattedDate = selectedDate.value.toISOString().split('T')[0];
+    unavailableTimeSlots.value = appointments.value
+      .filter(appointment => appointment.date === formattedDate)
+      .map(appointment => appointment.time);
+  };
+  
+  const disableSlot = (slot) => {
+    return unavailableTimeSlots.value.includes(slot);
+  };
+  
+  const setMode = (newMode) => {
+    mode.value = newMode;
+    if (newMode === 'view') {
+      fetchAppointments();
+      clearSelection();
+    }
+  };
+  
+  const clearSelection = () => {
+    selectedServices.value = {};
+    selectedTime.value = null;
+    selectedAppointment.value = null;
+  };
+  
+  const selectAppointment = (appointment) => {
+    selectedAppointment.value = appointment;
+    mode.value = 'update';
+    selectedServices.value = appointment.services.reduce((acc, service) => {
+      const serviceObj = services.value.find(s => s.name === service);
+      if (serviceObj) {
+        acc[serviceObj.id] = (acc[serviceObj.id] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    selectedDate.value = new Date(appointment.date);
+    currentMonth.value = new Date(appointment.date);
+    selectedTime.value = appointment.time;
+    updateCalendarHighlight();
+  };
+  
+  const highlightAppointmentDate = (appointment) => {
+    selectedAppointment.value = appointment;
+    selectedDate.value = new Date(appointment.date);
+    currentMonth.value = new Date(appointment.date);
+    updateCalendarHighlight();
+  };
+  
+  const updateCalendarHighlight = () => {
+    currentMonth.value = new Date(currentMonth.value);
+  };
+  
+  const showSummaryModal = () => {
+    if (isFormValid.value) {
+      isSummaryModalVisible.value = true;
+    }
+  };
+  
+  const closeSummaryModal = () => {
+    isSummaryModalVisible.value = false;
+  };
+  
+  const incrementService = (serviceId) => {
     selectedServices.value = {
       ...selectedServices.value,
-      [serviceId]: selectedServices.value[serviceId] - 1
+      [serviceId]: (selectedServices.value[serviceId] || 0) + 1
     };
-    if (selectedServices.value[serviceId] === 0) {
-      const { [serviceId]: _, ...rest } = selectedServices.value;
-      selectedServices.value = rest;
+  };
+  
+  const decrementService = (serviceId) => {
+    if (selectedServices.value[serviceId] > 0) {
+      const newCount = selectedServices.value[serviceId] - 1;
+      if (newCount === 0) {
+        const { [serviceId]: _, ...rest } = selectedServices.value;
+        selectedServices.value = rest;
+      } else {
+        selectedServices.value = {
+          ...selectedServices.value,
+          [serviceId]: newCount
+        };
+      }
     }
+  };
+  
+  const totalPrice = computed(() => {
+    return Object.entries(selectedServices.value)
+      .reduce((sum, [id, count]) => {
+        const service = services.value.find(s => s.id === id);
+        return sum + (service?.price || 0) * count;
+      }, 0);
+  });
+  
+  // const totalDuration = computed(() => {
+  //   return Object.entries(selectedServices.value)
+  //     .reduce((sum, [id, count]) => {
+  //       const service = services.value.find(s => s.id === id);
+  //       return sum + (service?.duration || 0) * count;
+  //     }, 0);
+  // });
+  
+  const isFormValid = computed(() => 
+    selectedDate.value && 
+    selectedTime.value && 
+    Object.values(selectedServices.value).some(count => count > 0)
+  );
+  
+  const hasSelectedServices = computed(() => Object.keys(selectedServices.value).length > 0);
+  
+  const formattedDate = computed(() => 
+    selectedDate.value ? selectedDate.value.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''
+  );
+  
+  const formatAppointmentDate = (date) => 
+    new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  
+  // const formatDuration = (minutes) => {
+  //   const hours = Math.floor(minutes / 60);
+  //   const mins = minutes % 60;
+  //   return `${hours}h ${mins}m`;
+  // };
+
+  const getServiceName = (serviceId) => services.value.find(s => s.id === serviceId)?.name || '';
+  const getServicePrice = (serviceId) => services.value.find(s => s.id === serviceId)?.price || 0;
+  // const getServiceDuration = (serviceId) => services.value.find(s => s.id === serviceId)?.duration || 0;
+  
+  const isAppointmentCancelledOrPending = (appointment) => {
+    return appointment.status === 'cancelled' || appointment.status === 'pending cancellation';
+  };
+  
+  const fetchServices = () => {
+    const servicesRef = collection(database, 'services');
+    return onSnapshot(servicesRef, (snapshot) => {
+      const seenNames = new Set();
+      services.value = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            icon: getIconForService(data.name)
+          };
+        })
+        .filter(service => {
+          if (seenNames.has(service.name)) {
+            return false;
+          }
+          seenNames.add(service.name);
+          return true;
+        });
+      console.log('Fetched services:', services.value);
+    }, (error) => {
+      console.error('Error fetching services:', error);
+    });
+  };
+  
+
+  
+
+  const fetchTreatments = async (service) => {
+  try {
+    isLoadingTreatments.value = true;
+    const treatmentsCollection = collection(database, 'treatments');
+    const q = query(treatmentsCollection, where('services', '==', service.name));
+    const treatmentSnapshot = await getDocs(q);
+    treatments.value = treatmentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching treatments:', error);
+  } finally {
+    isLoadingTreatments.value = false;
+    loadingTreatments.value = false;
   }
 };
 
-const totalPrice = computed(() => {
-  return Object.entries(selectedServices.value)
-    .reduce((sum, [id, count]) => {
-      const service = services.find(s => s.id === parseInt(id));
-      return sum + (service?.price || 0) * count;
-    }, 0);
-});
 
-const totalDuration = computed(() => {
-  return Object.entries(selectedServices.value)
-    .reduce((sum, [id, count]) => {
-      const service = services.find(s => s.id === parseInt(id));
-      return sum + (service?.duration || 0) * count;
-    }, 0);
-});
-
-const isFormValid = computed(() => 
-  selectedDate.value && 
-  selectedTime.value && 
-  Object.values(selectedServices.value).some(count => count > 0)
-);
-
-const hasSelectedServices = computed(() => Object.keys(selectedServices.value).length > 0);
-
-const formattedDate = computed(() => 
-  selectedDate.value ? selectedDate.value.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''
-);
-
-const formatAppointmentDate = (date) => 
-  new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-const formatDuration = (minutes) => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
+const showTreatmentList = async (service) => {
+  console.log('Showing treatment list for service:', JSON.stringify(service, null, 2));
+  selectedService.value = service;
+  isTreatmentListModalVisible.value = true;
+  await fetchTreatments(service);
 };
-
-const getServiceName = (serviceId) => services.find(s => s.id === serviceId)?.name || '';
-const getServicePrice = (serviceId) => services.find(s => s.id === serviceId)?.price || 0;
-const getServiceDuration = (serviceId) => services.find(s => s.id === serviceId)?.duration || 0;
-
-// New method to check if an appointment is cancelled or pending cancellation
-const isAppointmentCancelledOrPending = (appointment) => {
-  return appointment.status === 'cancelled' || appointment.status === 'pending cancellation';
-};
-
-watch(selectedDate, updateUnavailableTimeSlots);
-
-onMounted(() => {
-  const unsubscribe = auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      console.log('User is authenticated:', user.uid);
-      await fetchAppointments();
-    } else {
-      console.log('No authenticated user');
-      appointments.value = [];
+  const closeTreatmentListModal = () => {
+    isTreatmentListModalVisible.value = false;
+    selectedService.value = null;
+    treatments.value = [];
+  };
+  
+  const selectTreatment = (treatment) => {
+    if (selectedService.value) {
+      selectedServices.value = {
+        ...selectedServices.value,
+        [selectedService.value.id]: (selectedServices.value[selectedService.value.id] || 0) + 1
+      };
+      closeTreatmentListModal();
     }
+  };
+  
+  watch(selectedDate, updateUnavailableTimeSlots);
+  watch(treatments, (newTreatments) => {
+    console.log('Treatments updated:', newTreatments);
+  }, { deep: true });
+  
+  const saveRoute = () => {
+    localStorage.setItem('lastRoute', router.currentRoute.value.fullPath);
+  };
+  
+  watch(() => router.currentRoute.value.fullPath, saveRoute);
+  
+  onMounted(() => {
+    const lastRoute = localStorage.getItem('lastRoute');
+    if (lastRoute === '/appointment') {
+      router.push('/appointment');
+    }
+  
+    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        console.log('User is authenticated:', user.uid);
+        await fetchAppointments();
+      } else {
+        console.log('User is not authenticated');
+        router.push('/login');
+      }
+    });
+  
+    const unsubscribeServices = fetchServices();
+  
+    onUnmounted(() => {
+      unsubscribeAuth();
+      unsubscribeServices();
+    });
   });
-
-  // Cleanup on unmount
-  onUnmounted(() => {
-    unsubscribe();
-  });
-});
-
-</script>
+  </script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -802,6 +952,7 @@ h2, h3 {
   justify-content: center;
   align-items: center;
   margin-right: 1rem;
+  color: #8B5CF6;
 }
 
 .service-icon svg {
@@ -964,11 +1115,12 @@ h2, h3 {
 }
 
 .service-option p {
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
+  margin-bottom: 1px;
+  margin-top: 5px;
+  font-size: 16px;
   color: #1F2937;
   text-align: center;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .service-count {
@@ -1498,6 +1650,131 @@ h2, h3 {
   overflow-y: auto;
   padding-right: 1rem;
 }
+/* Add new styles for treatment list modal */
+.treatment-list-modal {
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.treatments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.treatment-card {
+  background-color: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #E5E7EB;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.treatment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: #8B5CF6;
+}
+
+.treatment-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  background-color: #F3F4F6;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.treatment-icon {
+  width: 24px;
+  height: 24px;
+  color: #8B5CF6;
+}
+
+.treatment-content {
+  flex: 1;
+}
+
+.treatment-content h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1F2937;
+  margin-bottom: 0.5rem;
+}
+
+.treatment-description {
+  font-size: 0.875rem;
+  color: #6B7280;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.treatment-price {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #8B5CF6;
+}
+
+.treatment-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.select-treatment-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #8B5CF6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.select-treatment-button:hover {
+  background-color: #7C3AED;
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  text-align: center;
+  color: #6B7280;
+}
+
+.spinner {
+  border: 3px solid rgba(139, 92, 246, 0.1);
+  border-radius: 50%;
+  border-top: 3px solid #8B5CF6;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 
 /* Custom Scrollbar Styling */
 .custom-scrollbar {
@@ -1554,6 +1831,17 @@ h2, h3 {
     font-size: 1rem;
     padding: 0.875rem 1.5rem;
     min-height: 3rem;
+  }
+}
+
+/* Responsive styles */
+@media (max-width: 640px) {
+  .treatments-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .treatment-card {
+    padding: 1rem;
   }
 }
 </style>

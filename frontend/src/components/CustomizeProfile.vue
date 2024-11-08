@@ -72,40 +72,23 @@
                       <img src="/src/images/philippines-flag.png" alt="Philippines Flag" class="flag-icon" />
                       <span class="country-code">+63</span>
                     </div>
-                    <input 
-                      v-model="form.phone" 
-                      type="tel" 
-                      id="phone" 
-                      class="form-select pl-16"
-                      placeholder="9XX XXX XXXX" 
-                    />
+                    <input v-model="form.phone" type="tel" id="phone" class="form-select pl-16"
+                      placeholder="9XX XXX XXXX" />
                   </div>
                 </div>
 
                 <!-- Date of Birth Field -->
                 <div class="form-field">
                   <label for="dateOfBirth" class="form-label">Date of Birth</label>
-                  <input 
-                    v-model="form.dateOfBirth" 
-                    type="date" 
-                    id="dateOfBirth" 
-                    class="form-select"
-                    :max="currentDate"
-                    @change="calculateAge"
-                  />
+                  <input v-model="form.dateOfBirth" type="date" id="dateOfBirth" class="form-select" :max="currentDate"
+                    @change="calculateAge" />
                 </div>
 
                 <!-- Age Field (Read-only) -->
                 <div class="form-field">
                   <label for="age" class="form-label">Age</label>
-                  <input 
-                    :value="form.age" 
-                    type="text" 
-                    id="age" 
-                    class="form-select"
-                    readonly 
-                    :placeholder="form.dateOfBirth ? '' : 'Will be calculated from Date of Birth'"
-                  />
+                  <input :value="form.age" type="text" id="age" class="form-select" readonly
+                    :placeholder="form.dateOfBirth ? '' : 'Will be calculated from Date of Birth'" />
                 </div>
               </div>
             </div>
@@ -122,7 +105,8 @@
                   <label for="province" class="form-label">Province</label>
                   <select v-model="form.address.province" @change="updateCities" id="province" class="form-select">
                     <option value="" disabled>Select Province</option>
-                    <option v-for="(cities, province) in addressData" :key="province" :value="province">{{ province }}</option>
+                    <option v-for="(cities, province) in addressData" :key="province" :value="province">{{ province }}
+                    </option>
                   </select>
                 </div>
                 <div class="form-field">
@@ -188,18 +172,21 @@
                   <label class="form-label">Do you have chronic conditions?</label>
                   <div class="radio-group">
                     <label class="radio-label">
-                      <input type="radio" v-model="form.medical.hasChronicConditions" :value="true" name="chronicConditions">
+                      <input type="radio" v-model="form.medical.hasChronicConditions" :value="true"
+                        name="chronicConditions">
                       Yes
                     </label>
                     <label class="radio-label">
-                      <input type="radio" v-model="form.medical.hasChronicConditions" :value="false" name="chronicConditions">
+                      <input type="radio" v-model="form.medical.hasChronicConditions" :value="false"
+                        name="chronicConditions">
                       No
                     </label>
                   </div>
                 </div>
                 <div v-if="form.medical.hasChronicConditions" class="form-field">
                   <label for="chronicConditions" class="form-label">Specify your chronic conditions</label>
-                  <input v-model="form.medical.chronicConditions" type="text" id="chronicConditions" class="form-input" />
+                  <input v-model="form.medical.chronicConditions" type="text" id="chronicConditions"
+                    class="form-input" />
                 </div>
                 <div class="form-field">
                   <label class="form-label">Previous surgeries or procedures?</label>
@@ -216,25 +203,33 @@
                 </div>
                 <div class="form-field col-span-2">
                   <label for="skinConditions" class="form-label">Skin Conditions</label>
-                  <textarea v-model="form.medical.skinConditions" id="skinConditions" rows="3" class="form-textarea"></textarea>
+                  <textarea v-model="form.medical.skinConditions" id="skinConditions" rows="3"
+                    class="form-textarea"></textarea>
                 </div>
               </div>
             </div>
 
-            <!-- Treatment History (Read-only) -->
             <div class="info-section">
               <h2 class="section-title flex items-center">
                 <HistoryIcon class="w-5 h-5 mr-2" />
                 Treatment History
               </h2>
               <div class="treatment-history">
-                <ul class="space-y-3">
-                  <li v-for="(treatment, index) in treatmentHistory" :key="index" class="treatment-item">
-                    <span class="treatment-date">{{ treatment.date }}:</span> {{ treatment.description }}
+                <ul v-if="approvedAppointments.length > 0" class="space-y-3">
+                  <li v-for="appointment in approvedAppointments" :key="appointment.id" class="treatment-item">
+                    <div class="flex justify-between items-start">
+                      <div>
+                        <span class="font-semibold">{{ formatDate(appointment.date) }} at {{ appointment.time }}</span>
+                        <p class="text-sm text-gray-600">Service: {{ appointment.serviceName }}</p>
+                        <p class="text-sm text-gray-600">Treatment: {{ appointment.treatmentName }}</p>
+                        <p v-if="appointment.productName" class="text-sm text-gray-600">Product: {{
+                          appointment.productName }}</p>
+                      </div>
+                    </div>
                   </li>
                 </ul>
-                <p v-if="treatmentHistory.length === 0" class="text-sm text-gray-500 italic">
-                  No treatment history available.
+                <p v-else class="text-sm text-gray-500 italic">
+                  No approved appointments available.
                 </p>
               </div>
             </div>
@@ -263,15 +258,15 @@
       </div>
     </div>
   </Transition>
-  
+
   <FooterComponent />
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { firestore } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { database } from '../firebase';
 import Navbar from './Navbar.vue';
 import FooterComponent from './Footer.vue';
 import { UserIcon, HistoryIcon, MailIcon, PencilIcon } from 'lucide-vue-next';
@@ -285,11 +280,13 @@ const addressData = {
     { name: "San Teodoro", barangays: ["Bigaan", "Calangatan", "Calsapa", "Ilag", "Lumangbayan", "Tacligan", "Poblacion", "Caagutayan"], postalCode: "5202" },
     { name: "Calapan City", barangays: ["Balingayan", "Balite", "Baruyan", "Batino", "Bayanan I", "Bayanan II", "Biga", "Bondoc", "Bucayao", "Buhuan", "Bulusan", "Calero", "Camansihan", "Camilmil", "Canubing I", "Canubing II", "Comunal", "Guinobatan", "Gulod", "Gutad", "Ibaba East", "Ibaba West", "Ilaya", "Lalud", "Lazareto", "Libis", "Lumangbayan", "Mahal Na Pangalan", "Maidlang", "Malad", "Malamig", "Managpi", "Masipit", "Nag-Iba I", "Nag-Iba II", "Navotas", "Pachoca", "Palhi", "Panggalaan", "Parang", "Patas", "Personas", "Putting Tubig", "San Antonio", "San Raphael (formerly Salong)", "San Vicente Central", "San Vicente East", "San Vicente North", "San Vicente South", "San Vicente West", "Sapul", "Silonay", "Sta. Cruz", "Sta. Isabel", "Sta. Maria Village", "Sta. Rita", "Sto. Niño (formerly Nacoco)", "Suqui", "Tawagan", "Tawiran", "Tibag", "Wawa"], postalCode: "5200" },
     { name: "Baco", barangays: [], postalCode: "5201" },
-    { name: "Naujan", barangays: ["Adrialuna",   "Andres Ylagan (Mag-asawang Tubig)", "Antipolo", "Apitong", "Arangin", "Aurora", "Bacungan", "Bagong Buhay", "Balite", "Bancuro", "Banuton", "Barcenaga", "Bayani", "Buhangin", "Caburo", "Concepcion", "Dao", "Del Pilar", "Estrella", "Evangelista", "Gamao", "General Esco", "Herrera", "Inarawan", "Kalinisan", "Laguna", "Mabini", "Magtibay", "Mahabang Parang", "Malabo", "Malaya", "Malinao", "Malvar", "Masagana", "Masaguing", "Melgar A", "Melgar B", "Metolza", "Montelago", "Montemayor", "Motoderazo", "Mulawin", "Nag-Iba I", "Nag-Iba II", "Pagkakaisa", "Paitan", "Paniquian", "Pinagsabangan I", "Pinagsabangan II", "Pinahan", "Poblacion I Barangay I)", "Poblacion II (Barangay II)", "Poblacion III Barangay III)", "Sampaguita", "San Agustin I", "San Agustin II", "San Andres", "San Antonio", "San Carlos", "San Isidro", "San Jose", "San Luis", "San Nicolas", "San Pedro", "Santa Cruz", "Santa Isabel", "Santa Maria", "Santiago", "Santo Nino", "Tagumpay", "Tigkan"], postalCode: "5204" },
+    { name: "Naujan", barangays: ["Adrialuna", "Andres Ylagan (Mag-asawang Tubig)", "Antipolo", "Apitong", "Arangin", "Aurora", "Bacungan", "Bagong Buhay", "Balite", "Bancuro", "Banuton", "Barcenaga", "Bayani", "Buhangin", "Caburo", "Concepcion", "Dao", "Del Pilar", "Estrella", "Evangelista", "Gamao", "General Esco", "Herrera", "Inarawan", "Kalinisan", "Laguna", "Mabini", "Magtibay", "Mahabang Parang", "Malabo", "Malaya", "Malinao", "Malvar", "Masagana", "Masaguing", "Melgar A", "Melgar B", "Metolza", "Montelago", "Montemayor", "Motoderazo", "Mulawin", "Nag-Iba I", "Nag-Iba II", "Pagkakaisa", "Paitan", "Paniquian", "Pinagsabangan I", "Pinagsabangan II", "Pinahan", "Poblacion I Barangay I)", "Poblacion II (Barangay II)", "Poblacion III Barangay III)", "Sampaguita", "San Agustin I", "San Agustin II", "San Andres", "San Antonio", "San Carlos", "San Isidro", "San Jose", "San Luis", "San Nicolas", "San Pedro", "Santa Cruz", "Santa Isabel", "Santa Maria", "Santiago", "Santo Nino", "Tagumpay", "Tigkan"], postalCode: "5204" },
     { name: "Victoria", barangays: ["Alcate", "Antonino (Mainao)", "Babangonan", "Bagong Buhay", "Bagong Silang", "Bambanin", "Bethel", "Canaan", "Concepcion", "Duongan", "Leido", "Loyal", "Mabini", "Macatoc", "Malabo", "Merit", "Ordovilla", "Pakyas", "Poblacion I", "Poblacion II", "Poblacion III", "Poblacion IV", "Sampaguita", "San Antonio", "San Cristobal", "San Gabriel", "San Gelacio", "San Isidro", "San Juan", "San Narciso", "Urdaneta", "Villa Cerveza"], postalCode: "5205" },
     { name: "Socorro", barangays: ["Batong Dalig", "Bayuin", "Bugtong Na Tuog", "Calocmoy", "Calubayan", "Catiningan", "Epiz (Bagsok)", "Happy Valley", "La Fortuna (Putol)", "Leuteboro I", "Leuteboro II", "Mabuhay I", "Mabuhay II", "Malugay", "Maria Concepcion", "Matungao", "Monteverde", "Pasi I", "Pasi II", "Santo Domingo (Lapog)", "Subaan", "Villareal (Daan)", "Zone I (Pob.)", "Zone II (Pob.)", "Zone III (Pob.)", "Zone IV (Pob.)"], postalCode: "5207" },
-    { name: "Pola", barangays: ["Bacauan", "Bacungan", "Batuhan", "Bayanan", "Biga", "Buhay na Tubig", "Calubasanhon", "Calima", "Casiligan", "Malibago", "Maluanluan", 
-    "Matulatula", "Pahilahan", "Panikihan", "Zone I (Poblacion)", "Zone II (Poblacion)", "Pula", "Puting Cacao", "Tagbakin", "Tagumpay", "Tiguihan", "Campamento", "Misong"], postalCode: "5206" },
+    {
+      name: "Pola", barangays: ["Bacauan", "Bacungan", "Batuhan", "Bayanan", "Biga", "Buhay na Tubig", "Calubasanhon", "Calima", "Casiligan", "Malibago", "Maluanluan",
+        "Matulatula", "Pahilahan", "Panikihan", "Zone I (Poblacion)", "Zone II (Poblacion)", "Pula", "Puting Cacao", "Tagbakin", "Tagumpay", "Tiguihan", "Campamento", "Misong"], postalCode: "5206"
+    },
     { name: "Pinamalayan", barangays: ["Bangbang", "Banilad", "Barangay I (Pob.)", "Barangay II (Pob.)", "Barangay III (Pob.)", "Barangay IV (Pob.)", "Biga", "Cacawan", "Del", "Mariano", "Marfrancisco", "Mina de Oro", "Nabuslot", "Pag-asa", "Palayan", "Pambisan", "Papandayan", "Pasi", "Rizal", "San Jose", "San Rafael", "Santa Maria", "Tibog"], postalCode: "5208" },
   ],
 };
@@ -301,7 +298,7 @@ const form = reactive({
   email: '',
   username: '',
   phone: '',
-  gender: '', 
+  gender: '',
   dateOfBirth: '',
   age: '',
   address: {
@@ -410,15 +407,15 @@ const validateForm = () => {
 
 const submitForm = async () => {
   if (!validateForm()) return;
-  
+
   displayPopup('Saving...', false);
   const auth = getAuth();
   const user = auth.currentUser;
 
   if (user) {
     try {
-      const userDocRef = doc(firestore, "authUsers", user.uid);
-      await setDoc(userDocRef, 
+      const userDocRef = doc(database, "users", user.uid);
+      await setDoc(userDocRef,
         {
           firstName: form.firstName,
           lastName: form.lastName,
@@ -443,13 +440,57 @@ const submitForm = async () => {
     displayPopup('Error: No authenticated user found.', true);
   }
 };
+const approvedAppointments = ref([]);
 
+// Function to fetch approved appointments
+const fetchApprovedAppointments = async (userId) => {
+  try {
+    const appointmentsRef = collection(database, 'appointments');
+    const q = query(
+      appointmentsRef,
+      where('userId', '==', userId),
+      where('status', '==', 'approved')
+    );
+    const querySnapshot = await getDocs(q);
+
+    const appointments = [];
+    for (const doc of querySnapshot.docs) {
+      const appointmentData = doc.data();
+
+      // Fetch service details
+      const serviceDoc = await getDoc(doc(database, 'services', appointmentData.serviceId));
+      const serviceName = serviceDoc.exists() ? serviceDoc.data().name : 'Unknown Service';
+
+      // Fetch treatment details
+      const treatmentDoc = await getDoc(doc(database, 'treatments', appointmentData.treatmentId));
+      const treatmentName = treatmentDoc.exists() ? treatmentDoc.data().name : 'Unknown Treatment';
+
+      appointments.push({
+        id: doc.id,
+        date: appointmentData.date.toDate(),
+        time: appointmentData.time,
+        serviceName,
+        treatmentName,
+        productName: appointmentData.productName || null,
+      });
+    }
+
+    approvedAppointments.value = appointments.sort((a, b) => b.date - a.date);
+  } catch (error) {
+    console.error("Error fetching approved appointments:", error);
+  }
+};
+
+// Function to format date
+const formatDate = (date) => {
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
 onMounted(() => {
   const auth = getAuth();
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       try {
-        const userDocRef = doc(firestore, "authUsers", user.uid);
+        const userDocRef = doc(database, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           const userData = userDoc.data();
@@ -465,7 +506,7 @@ onMounted(() => {
           if (userData.profileImage) {
             profileImage.value = userData.profileImage;
           }
-          
+
           // Handle address data initialization
           if (userData.address) {
             form.address = { ...form.address, ...userData.address };
@@ -480,6 +521,7 @@ onMounted(() => {
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
+      await fetchApprovedAppointments(user.uid);
     }
   });
 });
@@ -496,11 +538,11 @@ const calculateAge = () => {
     const birthDate = new Date(form.dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     form.age = age.toString();
   } else {
     form.age = '';
@@ -795,8 +837,13 @@ watch(() => form.phone, (newValue) => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Icon change transition */

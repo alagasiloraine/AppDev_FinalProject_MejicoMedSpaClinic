@@ -13,7 +13,7 @@
       <div class="login-content">
         <h2 class="login-title">Login</h2>
         
-        <form @submit.prevent="login" class="login-form">
+        <form @submit.prevent="handleLogin" class="login-form">
           <div class="form-group">
             <label for="email" class="form-label">Email</label>
             <div class="input-wrapper">
@@ -49,11 +49,13 @@
           </div>
 
           <div class="forgot-password">
-            <a @click.prevent="resetPassword" class="forgot-link">Forgot password?</a>
+            <a @click.prevent="handleResetPassword" class="forgot-link">Forgot password?</a>
           </div>
 
           <div>
-            <button type="submit" class="submit-button">Login</button>
+            <button type="submit" class="submit-button" :disabled="isLoading">
+              {{ isLoading ? 'Logging in...' : 'Login' }}
+            </button>
           </div>
         </form>
 
@@ -61,12 +63,6 @@
           <p>Don't have an account?
             <router-link to="/register" class="signup-link">Sign up</router-link>
           </p>
-
-          <transition name="fade">
-            <div v-if="showPopup" class="popup-message" :class="{ error: error }">
-              {{ message }}
-            </div>
-          </transition>
         </div>
       </div>
 
@@ -74,95 +70,79 @@
         <p>© 2023 Mejico Medical MD Spa Clinic. All rights reserved.</p>
       </div>
     </div>
+    <transition name="fade">
+      <div v-if="showPopup" class="popup-message" :class="{ error: isError }">
+        {{ popupMessage }}
+      </div>
+    </transition>
   </div>
 </template>
 
-<script>
+<script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase';
-import { loginUser } from '../services/api';
-import { Mail, Lock, ArrowLeft } from 'lucide-vue-next'; 
+import { Mail, Lock, ArrowLeft } from 'lucide-vue-next';
+import { login, resetPassword } from '../services/authService';
 
-export default {
-  components: { Mail, Lock, ArrowLeft },
-  setup() {
-    const email = ref('');
-    const password = ref('');
-    const message = ref('');
-    const error = ref(false);
-    const showPopup = ref(false);
-    const router = useRouter();
+const email = ref('');
+const password = ref('');
+const popupMessage = ref('');
+const isError = ref(false);
+const showPopup = ref(false);
+const isLoading = ref(false);
+const router = useRouter();
 
-    const displayPopup = (msg, isError = false, duration = 3000) => {
-      message.value = msg;
-      error.value = isError;
-      showPopup.value = true;
+const displayPopup = (msg, error = false, duration = 3000) => {
+  popupMessage.value = msg;
+  isError.value = error;
+  showPopup.value = true;
+  setTimeout(() => {
+    showPopup.value = false;
+  }, duration);
+};
+
+const handleLogin = async () => {
+  try {
+    isLoading.value = true;
+    const { user, role } = await login(email.value, password.value);
+    
+    if (user.emailVerified) {
+      displayPopup('Login successful', false);
       setTimeout(() => {
-        showPopup.value = false;
-      }, duration); // Hide pop-up after the specified duration
-    };
-
-    const login = async () => {
-      try {
-        displayPopup('', false); // Reset message
-
-        const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
-        const user = userCredential.user;
-
-        if (!user.emailVerified) {
-          displayPopup('Please verify your email before logging in.', true);
-          return;
-        }
-
-        await loginUser({ email: user.email, uid: user.uid });
-
-        // Show "Logging in..." message and delay for 5 seconds
-        displayPopup('Please wait. Logging in...', false, 3000);
-
-        // Wait for 5 seconds before navigating
-        setTimeout(() => {
+        if (role === 'admin') {
+          router.push('/admin-dashboard');
+        } else {
           router.push('/home');
-        }, 5000);
-
-      } catch (err) {
-        console.error('Login error:', err);
-        if (err.code === 'auth/user-not-found') {
-          displayPopup('User not found. Please sign up.', true);
-        } else if (err.code === 'auth/wrong-password') {
-          displayPopup('Incorrect password. Please try again.', true);
-        } else {
-          displayPopup(err.message || 'Login failed. Please check your credentials.', true);
         }
-      }
-    };
+      }, 1500);
+    } else {
+      displayPopup('Please verify your email before logging in.', true);
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    displayPopup(err.message || 'Login failed. Please try again.', true);
+  } finally {
+    isLoading.value = false;
+  }
+};
 
-    const resetPassword = async () => {
-      try {
-        if (!email.value) {
-          displayPopup('Please enter your email address to reset the password.', true);
-          return;
-        }
+const handleResetPassword = async () => {
+  if (!email.value) {
+    displayPopup('Please enter your email address to reset the password.', true);
+    return;
+  }
 
-        await sendPasswordResetEmail(auth, email.value);
-        displayPopup('Password reset email sent. Please check your inbox.', false);
-      } catch (err) {
-        console.error('Password reset error:', err);
-        if (err.code === 'auth/user-not-found') {
-          displayPopup('User not found. Please check your email.', true);
-        } else {
-          displayPopup(err.message || 'Failed to send password reset email.', true);
-        }
-      }
-    };
+  try {
+    await resetPassword(email.value);
+    displayPopup('Password reset email sent. Please check your inbox.', false);
+  } catch (err) {
+    console.error('Password reset error:', err);
+    displayPopup(err.message || 'Failed to send password reset email.', true);
+  }
+};
 
-    const goToLandingPage = () => {
-      router.push('/');
-    };
-
-    return { email, password, login, resetPassword, message, error, showPopup, goToLandingPage };
-  },
+const goToLandingPage = () => {
+  router.push('/landing');
 };
 </script>
 

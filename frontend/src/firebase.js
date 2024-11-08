@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getDatabase } from 'firebase/database';
-import { getFirestore } from 'firebase/firestore';
-
+// import { getDatabase } from 'firebase/database';
+import { getFirestore, collection, getDocs, setDoc } from 'firebase/firestore';
 const firebaseConfig = {
   apiKey: "AIzaSyBTE6cK6iA_Yc4htWWF2tQlB5mc2w2tSg8",
   authDomain: "mejico-medspa-clinic.firebaseapp.com",
@@ -15,7 +14,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const database = getDatabase(app);
-const firestore = getFirestore(app);
+// const database = getDatabase(app);
+const database = getFirestore(app);
 
-export { auth, database, firestore };
+export { auth, database, collection, getDocs };

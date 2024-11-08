@@ -43,12 +43,13 @@
       <router-link to="/contact" class="nav-item" active-class="active">Contact Us</router-link>
       
       <!-- Enhanced User Profile Dropdown -->
-      <div class="nav-item user-profile-dropdown" @click="toggleUserDropdown" v-click-outside="closeUserDropdown">
+     <!-- Enhanced User Profile Dropdown -->
+     <div class="nav-item user-profile-dropdown" @click="toggleUserDropdown" v-click-outside="closeUserDropdown">
         <div class="profile-trigger">
           <div class="avatar-container">
             <img 
-              v-if="profileImage" 
-              :src="profileImage" 
+              v-if="userData.profileImage" 
+              :src="userData.profileImage" 
               alt="Profile" 
               class="profile-avatar"
             />
@@ -62,16 +63,16 @@
           <div class="user-info">
             <div class="avatar-container large">
               <img 
-                v-if="profileImage" 
-                :src="profileImage" 
+                v-if="userData.profileImage" 
+                :src="userData.profileImage" 
                 alt="Profile" 
                 class="profile-avatar"
               />
               <UserCircle2 v-else class="default-avatar" />
             </div>
             <div class="user-details">
-              <span class="user-name purple-username">{{ username || 'Guest User' }}</span>
-              <span class="user-email">{{ email || 'No email set' }}</span>
+              <span class="user-name purple-username">{{ userData.username || 'Guest User' }}</span>
+              <span class="user-email">{{ userData.email || 'No email set' }}</span>
             </div>
           </div>
           
@@ -84,12 +85,12 @@
             >
               <UserCog2 class="item-icon" />
               <span>Customize Profile</span>
-              </router-link>
-              <router-link to="/profile/security" class="dropdown-item">
-                <Shield class="item-icon" />
-                <span>Personal Security</span>
-              </router-link>
-              <button @click="logout" class="dropdown-item">
+            </router-link>
+            <router-link to="/profile/security" class="dropdown-item">
+              <Shield class="item-icon" />
+              <span>Personal Security</span>
+            </router-link>
+            <button @click="logout" class="dropdown-item">
               <LogOut class="item-icon" />
               <span>Log Out</span>
             </button>
@@ -103,27 +104,28 @@
   <div v-if="logoutMessage" class="logout-notification">
     {{ logoutMessage }}
   </div>
-
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
-import { firestore } from '../firebase'
+import { database } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { ChevronDown, UserCircle2, UserCog2, Shield, LogOut } from 'lucide-vue-next'
-import { Calendar, ClipboardList, Tag } from 'lucide-vue-next';
+import { Calendar, ClipboardList, Tag } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 // State
 const isDropdownOpen = ref(false)
 const userDropdownOpen = ref(false)
-const username = ref('')
-const fullName = ref('')
-const email = ref('')
-const profileImage = ref('')
-const router = useRouter() // Initialize router
-const logoutMessage = ref('') // New reactive variable for logout message
+const userData = ref({
+  username: '',
+  fullName: '',
+  email: '',
+  profileImage: ''
+})
+const router = useRouter()
+const logoutMessage = ref('')
 
 // Computed property to check if "Services" routes are active
 const isServicesActive = computed(() => {
@@ -164,20 +166,41 @@ const logout = async () => {
     const auth = getAuth()
     try {
       await auth.signOut()
-      username.value = ''
-      fullName.value = ''
-      email.value = ''
-      profileImage.value = ''
+      userData.value = {
+        username: '',
+        fullName: '',
+        email: '',
+        profileImage: ''
+      }
       userDropdownOpen.value = false
-      logoutMessage.value = '' // Clear message before redirect
+      logoutMessage.value = ''
 
       // Redirect to the landing page
       await router.push('/')
     } catch (error) {
       console.error("Error logging out:", error)
-      logoutMessage.value = '' // Clear message if an error occurs
+      logoutMessage.value = ''
     }
   }, 5000) // 5-second delay
+}
+
+// Function to fetch user data from Firestore
+const fetchUserData = async (userId) => {
+  try {
+    const userDocRef = doc(database, "users", userId)
+    const userDoc = await getDoc(userDocRef)
+    if (userDoc.exists()) {
+      const data = userDoc.data()
+      userData.value = {
+        username: data.username || '',
+        fullName: data.fullName || '',
+        email: data.email || '',
+        profileImage: data.profileImage || ''
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching user data:", error)
+  }
 }
 
 // Lifecycle
@@ -185,27 +208,19 @@ onMounted(() => {
   const auth = getAuth()
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      try {
-        const userDocRef = doc(firestore, "authUsers", user.uid)
-        const userDoc = await getDoc(userDocRef)
-        if (userDoc.exists()) {
-          username.value = userDoc.data().username
-          fullName.value = userDoc.data().fullName
-          email.value = user.email
-          profileImage.value = userDoc.data().profileImage || ''
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error)
-      }
+      await fetchUserData(user.uid)
     } else {
-      username.value = ''
-      fullName.value = ''
-      email.value = ''
-      profileImage.value = ''
+      userData.value = {
+        username: '',
+        fullName: '',
+        email: '',
+        profileImage: ''
+      }
     }
   })
 })
 </script>
+
 
 <style scoped>
 /* Navbar styles */

@@ -1,7 +1,7 @@
 <template>
   <div class="register-container">
     <button class="exit-button" @click="goToLandingPage">
-      <ArrowLeft class="exit-icon" /> <!-- Icon component for the exit button -->
+      <ArrowLeft class="exit-icon" />
     </button>
     <div class="register-box">
       <div class="logo-header">
@@ -12,8 +12,8 @@
       </div>
       <div class="register-content">
         <h2 class="register-title">Sign Up</h2>
-
-        <form @submit.prevent="register" class="register-form">
+        
+        <form @submit.prevent="handleRegister" class="register-form">
           <div class="form-row">
             <div class="form-group">
               <label for="firstName" class="form-label">First Name</label>
@@ -67,7 +67,6 @@
                 />
               </div>
             </div>
-
             <div class="form-group">
               <label for="email" class="form-label">Email</label>
               <div class="input-wrapper">
@@ -123,7 +122,9 @@
           </div>
 
           <div>
-            <button type="submit" class="submit-button">Sign Up</button>
+            <button type="submit" class="submit-button" :disabled="isLoading">
+              {{ isLoading ? 'Signing Up...' : 'Sign Up' }}
+            </button>
           </div>
         </form>
 
@@ -133,118 +134,73 @@
           </p>
         </div>
 
-          <!-- Email Verification Modal -->
-          <EmailVerification v-if="showVerificationModal" @close="closeVerificationModal" />
-
-          <!-- Pop-up Notification -->
-          <transition name="fade">
-            <div v-if="showPopup" class="popup-message" :class="{ error: error }">
-              {{ message }}
-            </div>
-          </transition>
+        <!-- Pop-up Notification -->
+        <transition name="fade">
+          <div v-if="showPopup" class="popup-message" :class="{ error: isError }">
+            {{ popupMessage }}
+          </div>
+        </transition>
       </div>
     </div>
   </div>
 </template>
 
-<script>
+<script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import { auth } from '../firebase';
 import { Mail, Lock, User, ArrowLeft } from 'lucide-vue-next';
-import EmailVerification from './EmailVerification.vue';
+import { register, resendEmailVerification } from '../services/authService';
 
-export default {
-  components: { Mail, Lock, User, ArrowLeft, EmailVerification },
-  setup() {
-    const firstName = ref('');
-    const lastName = ref('');
-    const username = ref('');
-    const email = ref('');
-    const password = ref('');
-    const confirmPassword = ref('');
-    const message = ref('');
-    const error = ref(false);
-    const showPopup = ref(false);
-    const showVerificationModal = ref(false);
-    const router = useRouter();
+const firstName = ref('');
+const lastName = ref('');
+const username = ref('');
+const email = ref('');
+const password = ref('');
+const confirmPassword = ref('');
+const popupMessage = ref('');
+const isError = ref(false);
+const showPopup = ref(false);
+const isLoading = ref(false);
+const router = useRouter();
 
-    const displayPopup = (msg, isError = false) => {
-      message.value = msg;
-      error.value = isError;
-      showPopup.value = true;
-      setTimeout(() => {
-        showPopup.value = false;
-      }, 3000);
-    };
+const displayPopup = (msg, error = false, duration = 3000) => {
+  popupMessage.value = msg;
+  isError.value = error;
+  showPopup.value = true;
+  setTimeout(() => {
+    showPopup.value = false;
+  }, duration);
+};
 
-    const register = async () => {
-      try {
-        if (password.value !== confirmPassword.value) {
-          displayPopup('Passwords do not match.', true);
-          return;
-        }
+const handleRegister = async () => {
+  try {
+    if (password.value !== confirmPassword.value) {
+      displayPopup('Passwords do not match.', true);
+      return;
+    }
 
-        message.value = '';
-        error.value = false;
+    isLoading.value = true;
+    popupMessage.value = '';
+    isError.value = false;
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
-        const user = userCredential.user;
+    await register(email.value, password.value, firstName.value, lastName.value, username.value);
 
-        await sendEmailVerification(user);
-
-        const db = getFirestore();
-        await setDoc(doc(db, 'authUsers', user.uid), {
-          email: user.email,
-          uid: user.uid,
-          firstName: firstName.value,
-          lastName: lastName.value,
-          username: username.value,
-          isVerified: false,
-          registrationDate: new Date().toISOString(),
-        });
-
-        displayPopup('Registration successful. Please check your email to verify your account.', false);
-
-        // Show verification modal after a short delay
-        setTimeout(() => {
-          showVerificationModal.value = true;
-        }, 3000);
-      } catch (err) {
-        console.error('Registration error:', err);
-        displayPopup(err.message || 'Registration failed. Please try again.', true);
-      }
-    };
-
-    const closeVerificationModal = () => {
-      showVerificationModal.value = false;
+    displayPopup('Registration successful. Please check your email to verify your account.', false);
+    
+    // Redirect to login page after successful registration
+    setTimeout(() => {
       router.push('/login');
-    };
+    }, 3000);
+  } catch (err) {
+    console.error('Registration error:', err);
+    displayPopup(err.message || 'Registration failed. Please try again.', true);
+  } finally {
+    isLoading.value = false;
+  }
+};
 
-    // Function to navigate to the landing page
-    const goToLandingPage = () => {
-      router.push('/');
-    };
-
-    return {
-      firstName,
-      lastName,
-      username,
-      email,
-      password,
-      confirmPassword,
-      register,
-      message,
-      error,
-      showPopup,
-      showVerificationModal,
-      displayPopup,
-      closeVerificationModal,
-      goToLandingPage, // Export goToLandingPage for the exit button
-    };
-  },
+const goToLandingPage = () => {
+  router.push('/');
 };
 </script>
 
@@ -483,5 +439,38 @@ export default {
 
 .popup-message.error {
   background-color: #f44336; /* Error background color */
+}
+.verification-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.verification-modal h2 {
+  margin-bottom: 10px;
+}
+
+.verification-modal p {
+  margin-bottom: 20px;
+}
+
+.verification-modal button {
+  margin-right: 10px;
+  padding: 8px 16px;
+  background-color: #4a399c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.verification-modal button:hover {
+  background-color: #372a75;
 }
 </style>

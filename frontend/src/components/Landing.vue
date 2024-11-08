@@ -16,14 +16,10 @@
         <div class="blur-background"></div>
         <div class="welcome-content">
           <div class="welcome-text">
-            <div class="welcome-text">
-                <h1>Expert Care for <span>Radiant Skin</span> and Lasting Wellness</h1>
-                <p>Mejico MD Medical Spa Clinic offers a blend of advanced dermatological 
-                  treatments and personalized skin care services designed to bring out your natural beauty. 
-                  Whether you're seeking medical consultations or luxurious facials, trust us to enhance your 
-                  skin's health and appearance.</p>
-                <button class="cta-button">Book an Appointment</button>
-            </div>
+            <h3>Your Partner in Health & Beauty</h3>
+            <h1>Expert Care for <span>Radiant Skin</span> and Lasting Wellness</h1>
+            <p>Mejico MD Medical Spa Clinic offers a blend of advanced dermatological treatments and personalized skin care services designed to bring out your natural beauty. Whether you're seeking medical consultations or luxurious facials, trust us to enhance your skin's health and appearance.</p>
+            <button class="cta-button" @click="handleAppointmentClick">Book an Appointment</button>
           </div>
           <div class="welcome-logo">
             <img src="/src/images/mejico-image5.png" alt="Mejico Logo">
@@ -32,41 +28,46 @@
       </section>
 
       <Carousel />
-
       <LandingAbout />
     </main>
 
-      <FooterComponent />
+    <FooterComponent />
+
+    <!-- Modal for Login/Registration Reminder -->
+    <div v-if="showModal" class="modal-overlay">
+      <div class="modal-content">
+        <p>You need to log in or register before booking an appointment.</p>
+        <button @click="closeModal" class="close-button">Close</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import FooterComponent from './Footer.vue';
-import Carousel from './Carousel.vue'; 
-import LandingAbout from './LandingAbout.vue'; 
+import Carousel from './Carousel.vue';
+import LandingAbout from './LandingAbout.vue';
 
 export default {
   name: 'LandingPage',
   components: {
     FooterComponent,
-    Carousel, 
+    Carousel,
     LandingAbout,
   },
   setup() {
-    const apiStatus = ref('');
+    const showModal = ref(false);
 
-    onMounted(async () => {
-      try {
-        const response = await checkHealth();
-        apiStatus.value = response.data.message;
-      } catch (error) {
-        console.error('Error checking API health:', error);
-        apiStatus.value = 'Error connecting to API';
-      }
-    });
+    const handleAppointmentClick = () => {
+      showModal.value = true;
+    };
 
-    return { apiStatus };
+    const closeModal = () => {
+      showModal.value = false;
+    };
+
+    return { showModal, handleAppointmentClick, closeModal };
   }
 };
 </script>
@@ -152,7 +153,7 @@ main {
   background-attachment: fixed;
   display: flex;
   align-items: center;
-  justify-content: center; 
+  justify-content: center;
 }
 
 .blur-background {
@@ -162,7 +163,7 @@ main {
   width: 100%;
   height: 100%;
   backdrop-filter: blur(10px);
-  background: rgba(0, 0, 0, 0.5); 
+  background: rgba(0, 0, 0, 0.5);
   z-index: 0;
 }
 
@@ -176,7 +177,7 @@ main {
   border-radius: 5px;
   width: 100%;
   max-width: 1200px;
-  margin: 0 auto; 
+  margin: 0 auto;
   margin-left: 10px;
 }
 
@@ -189,9 +190,12 @@ main {
 
 /* Subtle Forward-Backward Animation */
 @keyframes slowPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
   }
+
   50% {
     transform: scale(1.05);
   }
@@ -299,8 +303,10 @@ main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 30px;
-  max-width: 1200px; /* Limit the width of the grid */
-  margin: 0 auto; /* Center the grid */
+  max-width: 1200px;
+  /* Limit the width of the grid */
+  margin: 0 auto;
+  /* Center the grid */
 }
 
 .service-card {
@@ -365,5 +371,44 @@ main {
   .services-section {
     padding: 50px 20px;
   }
+}
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: #9ab4c3;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  width: 80%;
+}
+
+
+
+.close-button {
+  background: transparent;
+  color: #333;
+  border: 1px solid #333;
+  padding: 5px 10px;
+  border-radius: 5px;
+  margin-top: 15px;
+  cursor: pointer;
+}
+
+.close-button:hover {
+  background: #f1f1f1;
 }
 </style>
