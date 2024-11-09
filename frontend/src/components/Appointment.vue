@@ -49,7 +49,7 @@
             </button>
           </div>
           
-          <!-- View Appointments -->
+           <!-- Modified appointments list section -->
           <div v-if="mode === 'view'" class="appointments-list custom-scrollbar">
             <h2>Your Appointments</h2>
             <div v-for="appointment in appointments" :key="appointment.id" class="appointment-card">
@@ -58,7 +58,7 @@
                   <component :is="getServiceIcon(appointment.services[0])" />
                 </div>
                 <div class="appointment-details">
-                  <h3>{{ appointment.services.join(', ') }}</h3>
+                  <h3>{{ summarizeServices(appointment.services) }}</h3>
                   <p>{{ formatAppointmentDate(appointment.date) }} at {{ appointment.time }}</p>
                   <p class="price">₱{{ appointment.price.toLocaleString('en-PH') }}</p>
                   <span :class="['status', appointment.status]">
@@ -87,14 +87,20 @@
   
           <!-- Book or Update Appointment -->
           <div v-if="mode === 'book' || mode === 'update'" class="booking-form">
+            <h3 class="services-heading">Select Services</h3>
             <!-- Service Selection -->
             <div class="service-options">
-              <div
+              <div 
                 v-for="service in uniqueServices"
                 :key="service.id"
                 class="service-option"
                 :class="{ selected: selectedServices[service.id] > 0 }"
               >
+                <!-- Add the quantity badge -->
+                <div v-if="getServiceQuantity(service.id) > 0" class="quantity-badge">
+                  x{{ getServiceQuantity(service.id) }}
+                </div>
+                
                 <button @click="showTreatmentList(service)" class="service-button">
                   <component :is="service.icon" class="service-icon" />
                   <p>{{ service.name }}</p>
@@ -136,117 +142,159 @@
       </div>
     </div>
   
-    <!-- Treatment List Modal -->
-    <div v-if="isTreatmentListModalVisible" class="modal-overlay" @click="closeTreatmentListModal">
-      <div class="modal treatment-list-modal" @click.stop>
-        <div class="modal-header">
-          <h3>{{ selectedService?.name }} Services</h3>
-          <button @click="closeTreatmentListModal" class="close-button">
-            <XIcon class="icon" />
-          </button>
-        </div>
-        
-        <div class="modal-body">
-        <div v-if="isLoadingTreatments" class="loading-state">
-          <div class="spinner"></div>
-          <p>Loading treatments...</p>
-        </div>
-        
-        <div v-if="!isLoadingTreatments && treatments.length === 0">
-          <p>No treatments available for this service.</p>
-        </div>
-        
-        <div v-else class="treatments-grid">
-          <div 
-            v-for="treatment in treatments" 
-            :key="treatment.id"
-            class="treatment-card"
-            @click="selectTreatment(treatment)"
-          >
-              <div class="treatment-icon-wrapper">
-                <component :is="getServiceIcon(selectedService?.name)" class="treatment-icon" />
-              </div>
-              
-              <div class="treatment-content">
-                <h4>{{ treatment.name }}</h4>
-                <p class="treatment-description">{{ treatment.description || 'Experience our professional service.' }}</p>
-                <div class="treatment-price">₱{{ treatment.price.toLocaleString('en-PH') }}</div>
-              </div>
-              
-              <div class="treatment-footer">
-                <button class="select-treatment-button">
-                  <PlusIcon class="icon" />
-                  Select
-                </button>
+      <!-- Modified Treatment List Modal -->
+      <div v-if="isTreatmentListModalVisible" class="modal-overlay" @click="closeTreatmentListModal">
+        <div class="modal treatment-list-modal" @click.stop>
+          <div class="modal-header">
+            <h3>{{ selectedService?.name }} Services</h3>
+            <button @click="closeTreatmentListModal" class="close-button">
+              <XIcon class="icon" />
+            </button>
+          </div>
+          
+          <div class="modal-body">
+            <div v-if="isLoadingTreatments" class="loading-state">
+              <div class="spinner"></div>
+              <p>Loading treatments...</p>
+            </div>
+            
+            <div v-if="!isLoadingTreatments && treatments.length === 0" class="empty-state">
+              <p>No treatments available for this service.</p>
+            </div>
+            
+            <div v-else class="treatments-grid">
+              <div 
+                v-for="treatment in treatments" 
+                :key="treatment.id"
+                class="treatment-card"
+                :class="{ 'selected': selectedTreatments[treatment.id] > 0 }"
+              >
+                <div class="treatment-icon-wrapper">
+                  <component :is="getServiceIcon(selectedService?.name)" class="treatment-icon" />
+                </div>
+                
+                <div class="treatment-content">
+                  <h4>{{ treatment.name }}</h4>
+                  <p class="treatment-description">{{ treatment.description || 'Experience our professional service.' }}</p>
+                  <div class="treatment-price">₱{{ treatment.price.toLocaleString('en-PH') }}</div>
+                  
+                  <div v-if="selectedTreatments[treatment.id]" class="quantity-controls">
+                    <button @click.stop="decrementTreatment(treatment)" class="quantity-button">
+                      <MinusIcon class="icon" />
+                    </button>
+                    <span class="quantity">{{ selectedTreatments[treatment.id] }}</span>
+                    <button @click.stop="incrementTreatment(treatment)" class="quantity-button">
+                      <PlusIcon class="icon" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="treatment-footer">
+                  <button 
+                    v-if="!selectedTreatments[treatment.id]"
+                    @click.stop="selectTreatment(treatment)" 
+                    class="select-treatment-button"
+                  >
+                    <PlusIcon class="icon" />
+                    Select
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+
+          <div class="modal-actions treatment-modal-actions">
+            <button 
+              @click="confirmTreatmentSelection" 
+              class="confirm-button"
+              :disabled="!hasSelectedTreatments || isConfirmingTreatment"
+            >
+              <template v-if="!isConfirmingTreatment && !isTreatmentConfirmed">
+                Confirm Selection
+              </template>
+              <template v-else-if="isConfirmingTreatment">
+                <div class="confirm-spinner"></div>
+                Confirming...
+              </template>
+              <template v-else>
+                <div class="confirm-success">
+                  <CheckIcon />
+                  Confirmed
+                </div>
+              </template>
+            </button>
+            <button @click="closeTreatmentListModal" class="cancel-button">
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
-    </div>
   
     <!-- Summary Modal -->
     <div v-if="isSummaryModalVisible" class="modal-overlay" @click="closeSummaryModal">
-      <div class="modal" @click.stop>
-        <div class="modal-content">
-          <h3 class="summary-title">Appointment Summary</h3>
-          <div class="summary-content-wrapper custom-scrollbar">
-            <div class="summary-content">
-              <!-- Selected Services Section -->
-              <div class="selected-services">
-                <h4>Selected Services</h4>
-                <div v-if="hasSelectedServices">
-                  <div v-for="(count, serviceId) in selectedServices" :key="serviceId" class="service-item">
-                    <div class="service-info">
-                      <div class="service-name-duration">
-                        <span class="service-name">{{ getServiceName(serviceId) }}</span>
-                        <!-- <span class="service-duration">({{ formatDuration(getServiceDuration(serviceId) * count) }})</span> -->
-                      </div>
-                      <div class="service-details">
-                        <span class="service-quantity">x{{ count }}</span>
+        <div class="modal" @click.stop>
+          <div class="modal-content">
+            <h3 class="summary-title">Appointment Summary</h3>
+            <div class="summary-content-wrapper custom-scrollbar">
+              <div class="summary-content">
+                <!-- Selected Services Section -->
+                <div class="selected-services">
+                  <h4>Selected Services</h4>
+                  <div v-if="hasSelectedServices">
+                    <div v-for="(count, serviceId) in selectedServices" :key="serviceId" class="service-item">
+                      <div class="service-info">
+                        <div class="service-name-duration">
+                          <span class="service-name">{{ getServiceName(serviceId) }}</span>
+                        </div>
+                        <div class="service-details">
+                          <span class="service-quantity">x{{ getServiceQuantity(serviceId) }}</span>
+                          <!-- Display selected treatments under the service -->
+                          <div v-if="selectedTreatmentsForService[serviceId]" class="selected-treatments">
+                            <div v-for="treatment in selectedTreatmentsForService[serviceId]" :key="treatment.id" class="treatment-item">
+                              <span>{{ treatment.name }}</span>
+                              <span class="treatment-quantity">x{{ treatment.quantity }}</span>
+                              <span class="treatment-price">₱{{ (treatment.price * treatment.quantity).toLocaleString('en-PH') }}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <div v-else class="no-services-message">
+                    No services selected
+                  </div>
                 </div>
-                <div v-else class="no-services-message">
-                  No services selected
+                <div class="summary-divider"></div>
+                <div class="summary-totals">
+                  <div class="total-row">
+                    <span>Total Price:</span>
+                    <span class="highlight price-highlight">₱{{ totalPrice.toLocaleString('en-PH') }}</span>
+                  </div>
                 </div>
-              </div>
-              <div class="summary-divider"></div>
-              <div class="summary-totals">
-                <!-- <div class="total-row">
-                  <span>Total Duration:</span>
-                  <span class="highlight">{{ formatDuration(totalDuration) }}</span>
-                </div> -->
-                <div class="total-row">
-                  <span>Total Price:</span>
-                  <span class="highlight price-highlight">₱{{ totalPrice.toLocaleString('en-PH') }}</span>
-                </div>
-              </div>
-              <div class="summary-divider"></div>
-              <div class="appointment-details">
-                <div class="detail-row">
-                  <span class="label">Date:</span>
-                  <span>{{ formattedDate }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Time:</span>
-                  <span>{{ selectedTime }}</span>
+                <div class="summary-divider"></div>
+                <div class="appointment-details">
+                  <div class="detail-row">
+                    <span class="label">Date:</span>
+                    <span>{{ formattedDate }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="label">Time:</span>
+                    <span>{{ selectedTime }}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="modal-actions">
-            <button @click="confirmAppointment" class="confirm-button">
-              <CheckIcon class="icon" /> Confirm
-            </button>
-            <button @click="closeSummaryModal" class="cancel-button">
-              <XIcon class="icon" /> Cancel
-            </button>
+            <div class="modal-actions">
+              <button @click="confirmAppointment" class="confirm-button">
+                <CheckIcon class="icon" /> Confirm
+              </button>
+              <button @click="closeSummaryModal" class="cancel-button">
+                <XIcon class="icon" /> Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
   
     <!-- Confirmation Modal -->
     <div v-if="isConfirmationModalVisible" class="modal-overlay" @click.self="isConfirmationModalVisible = false">
@@ -284,13 +332,14 @@
     
     <FooterComponent />
   </div>
-  </template>
+</template>
   
-  <script setup>
-  import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
-  import Navbar from './Navbar.vue';
-  import FooterComponent from './Footer.vue';
-  import { 
+<script setup>
+import Navbar from './Navbar.vue';
+import FooterComponent from './Footer.vue';  
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+
+import { 
   collection, 
   addDoc,
   getDocs,
@@ -300,10 +349,10 @@
   where,
   serverTimestamp,
   onSnapshot
-  } from 'firebase/firestore';
-  import { auth, database } from '../firebase';
-  import { useRouter } from 'vue-router';
-  import { 
+} from 'firebase/firestore';
+import { auth, database } from '../firebase';
+import { useRouter } from 'vue-router';
+import { 
   CalendarPlusIcon, 
   RefreshCwIcon, 
   StethoscopeIcon, 
@@ -317,450 +366,497 @@
   MinusIcon,
   PlusIcon,
   Scissors
-  } from 'lucide-vue-next';
-  
-  const router = useRouter();
-  
-  const selectedDate = ref(new Date());
-  const currentMonth = ref(new Date());
-  const selectedServices = ref({});
-  const selectedTime = ref('');
-  const mode = ref('book');
-  const selectedAppointment = ref(null);
-  const appointments = ref([]);
-  const unavailableTimeSlots = ref([]);
-  const availableTimeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
-  const isSummaryModalVisible = ref(false);
-  const isConfirmationModalVisible = ref(false);
-  const confirmationStatus = ref('');
-  const isCancellationModalVisible = ref(false);
-  const cancellationStatus = ref('');
-  
-  const services = ref([]);
-  
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  
-  // New refs for treatment list modal
-  const isTreatmentListModalVisible = ref(false);
-  const selectedService = ref(null);
-  const treatments = ref([]);
-  const isLoadingTreatments = ref(false);
-  const loadingTreatments = ref(true);
+} from 'lucide-vue-next';
 
-  const currentMonthYear = computed(() => {
-    return currentMonth.value.toLocaleString('default', { month: 'long', year: 'numeric' });
+const router = useRouter();
+
+const selectedDate = ref(new Date());
+const currentMonth = ref(new Date());
+const selectedServices = ref({});
+const selectedTime = ref('');
+const mode = ref('book');
+const selectedAppointment = ref(null);
+const appointments = ref([]);
+const unavailableTimeSlots = ref([]);
+const availableTimeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+const isSummaryModalVisible = ref(false);
+const isConfirmationModalVisible = ref(false);
+const confirmationStatus = ref('');
+const isCancellationModalVisible = ref(false);
+const cancellationStatus = ref('');
+const services = ref([]);
+
+const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Treatment list modal refs
+const isTreatmentListModalVisible = ref(false);
+const selectedService = ref(null);
+const treatments = ref([]);
+const isLoadingTreatments = ref(false);
+const loadingTreatments = ref(true);
+const selectedTreatments = ref({});
+const isConfirmingTreatment = ref(false);
+const isTreatmentConfirmed = ref(false);
+const currentTotal = ref(0);
+const selectedTreatmentsHistory = ref({});
+
+const currentMonthYear = computed(() => {
+  return currentMonth.value.toLocaleString('default', { month: 'long', year: 'numeric' });
+});
+
+const calendarDays = computed(() => {
+  const year = currentMonth.value.getFullYear();
+  const month = currentMonth.value.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay();
+
+  const days = [];
+
+  // Add days from previous month
+  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+    const date = new Date(year, month, -i);
+    days.push({
+      date,
+      isCurrentMonth: false,
+      isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
+      isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
+      isDisabled: date < new Date()
+    });
+  }
+
+  // Add days of current month
+  for (let i = 1; i <= daysInMonth; i++) {
+    const date = new Date(year, month, i);
+    days.push({
+      date,
+      isCurrentMonth: true,
+      isSelected: isSameDate(date, selectedDate.value),
+      isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
+      isDisabled: date < new Date()
+    });
+  }
+
+  // Add days from next month
+  const remainingDays = 42 - days.length; // 6 rows * 7 days = 42
+  for (let i = 1; i <= remainingDays; i++) {
+    const date = new Date(year, month + 1, i);
+    days.push({
+      date,
+      isCurrentMonth: false,
+      isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
+      isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
+      isDisabled: date < new Date()
+    });
+  }
+
+  return days;
+});
+
+const uniqueServices = computed(() => {
+  const uniqueMap = new Map();
+  services.value.forEach(service => {
+    if (!uniqueMap.has(service.name)) {
+      uniqueMap.set(service.name, {
+        ...service,
+        id: service.id // Use the original ID without modification
+      });
+    }
   });
+  return Array.from(uniqueMap.values());
+});
+
+// Add this new function to summarize services
+const summarizeServices = (services) => {
+  if (!services || !Array.isArray(services)) return '';
   
-  const calendarDays = computed(() => {
-    const year = currentMonth.value.getFullYear();
-    const month = currentMonth.value.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+  const serviceCount = services.reduce((acc, service) => {
+    acc[service] = (acc[service] || 0) + 1;
+    return acc;
+  }, {});
   
-    const days = [];
-  
-    // Add days from previous month
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const date = new Date(year, month, -i);
-      days.push({
-        date,
-        isCurrentMonth: false,
-        isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
-        isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
-        isDisabled: date < new Date()
-      });
-    }
-  
-    // Add days of current month
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(year, month, i);
-      days.push({
-        date,
-        isCurrentMonth: true,
-        isSelected: isSameDate(date, selectedDate.value),
-        isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
-        isDisabled: date < new Date()
-      });
-    }
-  
-    // Add days from next month
-    const remainingDays = 42 - days.length; // 6 rows * 7 days = 42
-    for (let i = 1; i <= remainingDays; i++) {
-      const date = new Date(year, month + 1, i);
-      days.push({
-        date,
-        isCurrentMonth: false,
-        isSelected: isSameDate(date, selectedDate.value) || (selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date))),
-        isAppointmentDate: selectedAppointment.value && isSameDate(date, new Date(selectedAppointment.value.date)),
-        isDisabled: date < new Date()
-      });
-    }
-  
-    return days;
-  });
-  
-  const uniqueServices = computed(() => {
-    const uniqueMap = new Map();
-    services.value.forEach(service => {
-      if (!uniqueMap.has(service.name)) {
-        uniqueMap.set(service.name, {
-          ...service,
-          id: service.id // Use the original ID without modification
+  return Object.entries(serviceCount)
+    .map(([service, count]) => `${count}x ${service}`)
+    .join(', ');
+};
+
+const hasSelectedTreatments = computed(() => Object.values(selectedTreatments.value).some(count => count > 0));
+
+function isSameDate(date1, date2) {
+  return date1.getFullYear() === date2.getFullYear() &&
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate();
+}
+
+function previousMonth() {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
+}
+
+function nextMonth() {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
+}
+
+function selectDate(date) {
+  selectedDate.value = date;
+  updateUnavailableTimeSlots();
+}
+
+const confirmAppointment = async () => {
+  if (!isFormValid.value) {
+    console.error('Form validation failed');
+    return;
+  }
+
+  try {
+    isConfirmationModalVisible.value = true;
+    confirmationStatus.value = 'confirming';
+
+    // Create appointment data
+    const appointmentData = {
+      userId: auth.currentUser?.uid,
+      userEmail: auth.currentUser?.email,
+      services: Object.entries(selectedServices.value).flatMap(([id, count]) => 
+        Array(count).fill(services.value.find(s => s.id === id)?.name)
+      ),
+      date: selectedDate.value.toISOString().split('T')[0],
+      time: selectedTime.value,
+      price: totalPrice.value,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    if (mode.value === 'book') {
+      // Add new appointment
+      const appointmentsRef = collection(database, 'appointments');
+      const appointmentDoc = await addDoc(appointmentsRef, appointmentData);
+      console.log('New appointment created with ID:', appointmentDoc.id);
+
+      // Add reference to user's appointments subcollection
+      if (auth.currentUser) {
+        const userAppointmentsRef = collection(
+          database, 
+          'users', 
+          auth.currentUser.uid, 
+          'appointments'
+        );
+        
+        await addDoc(userAppointmentsRef, {
+          appointmentId: appointmentDoc.id,
+          createdAt: serverTimestamp()
         });
       }
-    });
-    return Array.from(uniqueMap.values());
-  });
-  
-  function isSameDate(date1, date2) {
-    return date1.getFullYear() === date2.getFullYear() &&
-          date1.getMonth() === date2.getMonth() &&
-          date1.getDate() === date2.getDate();
-  }
-  
-  function previousMonth() {
-    currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
-  }
-  
-  function nextMonth() {
-    currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
-  }
-  
-  function selectDate(date) {
-    selectedDate.value = date;
-    updateUnavailableTimeSlots();
-  }
-  
-  const confirmAppointment = async () => {
-    if (!isFormValid.value) {
-      console.error('Form validation failed');
-      return;
-    }
-  
-    try {
-      isConfirmationModalVisible.value = true;
-      confirmationStatus.value = 'confirming';
-  
-      // Create appointment data
-      const appointmentData = {
-        userId: auth.currentUser?.uid,
-        userEmail: auth.currentUser?.email,
-        services: Object.entries(selectedServices.value).flatMap(([id, count]) => 
-          Array(count).fill(services.value.find(s => s.id === id)?.name)
-        ),
-        date: selectedDate.value.toISOString().split('T')[0],
-        time: selectedTime.value,
-        price: totalPrice.value,
-        duration: totalDuration.value,
-        status: 'pending',
-        createdAt: serverTimestamp(),
+    } else if (mode.value === 'update' && selectedAppointment.value) {
+      const appointmentRef = doc(database, 'appointments', selectedAppointment.value.id);
+      await updateDoc(appointmentRef, {
+        ...appointmentData,
         updatedAt: serverTimestamp()
-      };
+      });
+    }
+
+    confirmationStatus.value = 'confirmed';
+    await fetchAppointments(); // Refresh the appointments list
+
+    setTimeout(() => {
+      isConfirmationModalVisible.value = false;
+      closeSummaryModal();
+      setMode('view');
+    }, 2000);
+
+  } catch (error) {
+    console.error('Error saving appointment:', error);
+    confirmationStatus.value = 'error';
+    alert('Failed to save appointment. Please try again.');
+  }
+};
+
+const fetchAppointments = async () => {
+  if (!auth.currentUser) {
+    console.log('No authenticated user');
+    return;
+  }
+
+  try {
+    const appointmentsRef = collection(database, 'appointments');
+    const q = query(
+      appointmentsRef, 
+      where('userId', '==', auth.currentUser.uid)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    appointments.value = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    console.log('Fetched appointments:', appointments.value);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+  }
+};
+
+const cancelAppointment = async (appointmentId) => {
+  if (!auth.currentUser) {
+    console.log('No authenticated user');
+    return;
+  }
+
+  try {
+    isCancellationModalVisible.value = true;
+    cancellationStatus.value = 'cancelling';
+
+    // Simulate a delay of 3 seconds
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const appointmentRef = doc(database, 'appointments', appointmentId);
+    await updateDoc(appointmentRef, {
+      status: 'pending cancellation',
+      updatedAt: serverTimestamp()
+    });
+
+    const cancellationRef = collection(database, 'cancellation_requests');
+    await addDoc(cancellationRef, {
+      appointmentId,
+      userId: auth.currentUser.uid,
+      userEmail: auth.currentUser.email,
+      status: 'pending',
+      requestedAt: serverTimestamp()
+    });
+
+    await fetchAppointments();
+    cancellationStatus.value = 'cancelled';
+
+    // Close the modal after 2 seconds
+    setTimeout(() => {
+      isCancellationModalVisible.value = false;
+      cancellationStatus.value = '';
+    }, 2000);
+
+  } catch (error) {
+    console.error('Error processing cancellation:', error);
+    cancellationStatus.value = 'error';
+    setTimeout(() => {
+      isCancellationModalVisible.value = false;
+      cancellationStatus.value = '';
+    }, 2000);
+  }
+};
+
+const selectTimeSlot = (slot) => {
+  if (!disableSlot(slot)) {
+    selectedTime.value = slot;
+  }
+};
+
+const getIconForService = (serviceName) => {
+  const iconMap = {
+    'Checkup': StethoscopeIcon,
+    'Massage': DropletIcon,
+    'Manicure': HandIcon,
+    'Pedicure': ScissorsIcon,
+    'Hair Removal': ZapIcon,
+    'Hair Care': Scissors,
+    'Hair Cut': Scissors,
+    'Hair Style': Scissors,
+  };
+
+  return iconMap[serviceName] || StethoscopeIcon;
+};
+
+const getServiceIcon = (serviceName) => {
+  return getIconForService(serviceName);
+};
+
+const updateUnavailableTimeSlots = () => {
+  if (!selectedDate.value) return;
+
+  const formattedDate = selectedDate.value.toISOString().split('T')[0];
+  unavailableTimeSlots.value = appointments.value
+    .filter(appointment => appointment.date === formattedDate)
+    .map(appointment => appointment.time);
+};
+
+const disableSlot = (slot) => {
+  return unavailableTimeSlots.value.includes(slot);
+};
+
+const setMode = (newMode) => {
+  mode.value = newMode;
+  if (newMode === 'view') {
+    fetchAppointments();
+    clearSelection();
+  }
+};
+
+// Add a function to clear all selections (use this when needed, e.g., after confirming appointment)
+const clearAllSelections = () => {
+  selectedTreatmentsHistory.value = {};
+  selectedTreatments.value = {};
+  selectedServices.value = {};
+  currentTotal.value = 0;
+};
+
+const clearSelection = () => {
+  selectedServices.value = {};
+  selectedTime.value = null;
+  selectedAppointment.value = null;
+};
+
+const selectAppointment = (appointment) => {
+  selectedAppointment.value = appointment;
+  mode.value = 'update';
+  selectedServices.value = appointment.services.reduce((acc, service) => {
+    const serviceObj = services.value.find(s => s.name === service);
+    if (serviceObj) {
+      acc[serviceObj.id] = (acc[serviceObj.id] || 0) + 1;
+    }
+    return acc;
+  }, {});
+  selectedDate.value = new Date(appointment.date);
+  currentMonth.value = new Date(appointment.date);
+  selectedTime.value = appointment.time;
+  updateCalendarHighlight();
+};
+
+const highlightAppointmentDate = (appointment) => {
+  selectedAppointment.value = appointment;
+  selectedDate.value = new Date(appointment.date);
+  currentMonth.value = new Date(appointment.date);
+  updateCalendarHighlight();
+};
+
+const updateCalendarHighlight = () => {
+  currentMonth.value = new Date(currentMonth.value);
+};
+
+const showSummaryModal = () => {
+  if (isFormValid.value) {
+    isSummaryModalVisible.value = true;
+  }
+};
+
+const closeSummaryModal = () => {
+  isSummaryModalVisible.value = false;
+};
+
+
+// Modify the computed property to handle undefined cases
+const selectedTreatmentsForService = computed(() => {
+  if (!selectedTreatmentsHistory.value || !treatments.value) {
+    return {};
+  }
+
+  const treatmentsByService = {};
   
-      if (mode.value === 'book') {
-        // Add new appointment
-        const appointmentsRef = collection(database, 'appointments');
-        const appointmentDoc = await addDoc(appointmentsRef, appointmentData);
-        console.log('New appointment created with ID:', appointmentDoc.id);
-  
-        // Add reference to user's appointments subcollection
-        if (auth.currentUser) {
-          const userAppointmentsRef = collection(
-            database, 
-            'users', 
-            auth.currentUser.uid, 
-            'appointments'
-          );
-          
-          await addDoc(userAppointmentsRef, {
-            appointmentId: appointmentDoc.id,
-            createdAt: serverTimestamp()
+  Object.entries(selectedTreatmentsHistory.value).forEach(([serviceId, serviceData]) => {
+    if (!serviceData) return;
+    
+    const serviceTreatments = [];
+    Object.entries(serviceData).forEach(([treatmentId, quantity]) => {
+      if (treatmentId !== 'total' && treatmentId !== 'quantity') {
+        const treatment = treatments.value.find(t => t.id === treatmentId);
+        if (treatment) {
+          serviceTreatments.push({
+            id: treatmentId,
+            name: treatment.name,
+            price: treatment.price,
+            quantity: quantity
           });
         }
-      } else if (mode.value === 'update' && selectedAppointment.value) {
-        const appointmentRef = doc(database, 'appointments', selectedAppointment.value.id);
-        await updateDoc(appointmentRef, {
-          ...appointmentData,
-          updatedAt: serverTimestamp()
-        });
       }
-  
-      confirmationStatus.value = 'confirmed';
-      await fetchAppointments(); // Refresh the appointments list
-  
-      setTimeout(() => {
-        isConfirmationModalVisible.value = false;
-        closeSummaryModal();
-        setMode('view');
-      }, 2000);
-  
-    } catch (error) {
-      console.error('Error saving appointment:', error);
-      confirmationStatus.value = 'error';
-      alert('Failed to save appointment. Please try again.');
+    });
+    if (serviceTreatments.length > 0) {
+      treatmentsByService[serviceId] = serviceTreatments;
     }
-  };
-  
-  const fetchAppointments = async () => {
-    if (!auth.currentUser) {
-      console.log('No authenticated user');
-      return;
-    }
-  
-    try {
-      const appointmentsRef = collection(database, 'appointments');
-      const q = query(
-        appointmentsRef, 
-        where('userId', '==', auth.currentUser.uid)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      appointments.value = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-  
-      console.log('Fetched appointments:', appointments.value);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-    }
-  };
-  
-  const cancelAppointment = async (appointmentId) => {
-    if (!auth.currentUser) {
-      console.log('No authenticated user');
-      return;
-    }
-  
-    try {
-      isCancellationModalVisible.value = true;
-      cancellationStatus.value = 'cancelling';
-  
-      // Simulate a delay of 3 seconds
-      await new Promise(resolve => setTimeout(resolve, 3000));
-  
-      const appointmentRef = doc(database, 'appointments', appointmentId);
-      await updateDoc(appointmentRef, {
-        status: 'pending cancellation',
-        updatedAt: serverTimestamp()
-      });
-  
-      const cancellationRef = collection(database, 'cancellation_requests');
-      await addDoc(cancellationRef, {
-        appointmentId,
-        userId: auth.currentUser.uid,
-        userEmail: auth.currentUser.email,
-        status: 'pending',
-        requestedAt: serverTimestamp()
-      });
-  
-      await fetchAppointments();
-      cancellationStatus.value = 'cancelled';
-  
-      // Close the modal after 2 seconds
-      setTimeout(() => {
-        isCancellationModalVisible.value = false;
-        cancellationStatus.value = '';
-      }, 2000);
-  
-    } catch (error) {
-      console.error('Error processing cancellation:', error);
-      cancellationStatus.value = 'error';
-      setTimeout(() => {
-        isCancellationModalVisible.value = false;
-        cancellationStatus.value = '';
-      }, 2000);
-    }
-  };
-  
-  const selectTimeSlot = (slot) => {
-    if (!disableSlot(slot)) {
-      selectedTime.value = slot;
-    }
-  };
-  
-  const getIconForService = (serviceName) => {
-    const iconMap = {
-      'Checkup': StethoscopeIcon,
-      'Massage': DropletIcon,
-      'Manicure': HandIcon,
-      'Pedicure': ScissorsIcon,
-      'Hair Removal': ZapIcon,
-      'Hair Care': Scissors,
-      'Hair Cut': Scissors,
-      'Hair Style': Scissors,
-    };
-  
-    return iconMap[serviceName] || StethoscopeIcon;
-  };
-  
-  const getServiceIcon = (serviceName) => {
-    return getIconForService(serviceName);
-  };
-  
-  const updateUnavailableTimeSlots = () => {
-    if (!selectedDate.value) return;
-  
-    const formattedDate = selectedDate.value.toISOString().split('T')[0];
-    unavailableTimeSlots.value = appointments.value
-      .filter(appointment => appointment.date === formattedDate)
-      .map(appointment => appointment.time);
-  };
-  
-  const disableSlot = (slot) => {
-    return unavailableTimeSlots.value.includes(slot);
-  };
-  
-  const setMode = (newMode) => {
-    mode.value = newMode;
-    if (newMode === 'view') {
-      fetchAppointments();
-      clearSelection();
-    }
-  };
-  
-  const clearSelection = () => {
-    selectedServices.value = {};
-    selectedTime.value = null;
-    selectedAppointment.value = null;
-  };
-  
-  const selectAppointment = (appointment) => {
-    selectedAppointment.value = appointment;
-    mode.value = 'update';
-    selectedServices.value = appointment.services.reduce((acc, service) => {
-      const serviceObj = services.value.find(s => s.name === service);
-      if (serviceObj) {
-        acc[serviceObj.id] = (acc[serviceObj.id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    selectedDate.value = new Date(appointment.date);
-    currentMonth.value = new Date(appointment.date);
-    selectedTime.value = appointment.time;
-    updateCalendarHighlight();
-  };
-  
-  const highlightAppointmentDate = (appointment) => {
-    selectedAppointment.value = appointment;
-    selectedDate.value = new Date(appointment.date);
-    currentMonth.value = new Date(appointment.date);
-    updateCalendarHighlight();
-  };
-  
-  const updateCalendarHighlight = () => {
-    currentMonth.value = new Date(currentMonth.value);
-  };
-  
-  const showSummaryModal = () => {
-    if (isFormValid.value) {
-      isSummaryModalVisible.value = true;
-    }
-  };
-  
-  const closeSummaryModal = () => {
-    isSummaryModalVisible.value = false;
-  };
-  
-  const incrementService = (serviceId) => {
-    selectedServices.value = {
-      ...selectedServices.value,
-      [serviceId]: (selectedServices.value[serviceId] || 0) + 1
-    };
-  };
-  
-  const decrementService = (serviceId) => {
-    if (selectedServices.value[serviceId] > 0) {
-      const newCount = selectedServices.value[serviceId] - 1;
-      if (newCount === 0) {
-        const { [serviceId]: _, ...rest } = selectedServices.value;
-        selectedServices.value = rest;
-      } else {
-        selectedServices.value = {
-          ...selectedServices.value,
-          [serviceId]: newCount
-        };
-      }
-    }
-  };
-  
-  const totalPrice = computed(() => {
-    return Object.entries(selectedServices.value)
-      .reduce((sum, [id, count]) => {
-        const service = services.value.find(s => s.id === id);
-        return sum + (service?.price || 0) * count;
-      }, 0);
   });
   
-  // const totalDuration = computed(() => {
-  //   return Object.entries(selectedServices.value)
-  //     .reduce((sum, [id, count]) => {
-  //       const service = services.value.find(s => s.id === id);
-  //       return sum + (service?.duration || 0) * count;
-  //     }, 0);
-  // });
+  return treatmentsByService;
+});
+
+// Modify the total price computation to handle undefined cases
+const totalPrice = computed(() => {
+  if (!selectedTreatmentsHistory.value) return 0;
   
-  const isFormValid = computed(() => 
+  return Object.values(selectedTreatmentsHistory.value)
+    .reduce((sum, serviceHistory) => {
+      if (!serviceHistory || typeof serviceHistory.total === 'undefined') {
+        return sum;
+      }
+      return sum + (serviceHistory.total || 0);
+    }, 0);
+});
+
+// Add these watchers
+watch(selectedTreatments, (newSelectedTreatments) => {
+  console.log('Selected treatments changed:', newSelectedTreatments);
+}, { deep: true });
+
+watch(treatments, (newTreatments) => {
+  console.log('Treatments updated:', newTreatments);
+}, { deep: true });
+
+watch(selectedService, (newService, oldService) => {
+  if (newService && oldService) {
+    // Preserve existing treatments when switching services
+    const existingTreatments = { ...selectedTreatments.value };
+    selectedTreatments.value = existingTreatments;
+  }
+}, { deep: true });
+
+// Add a check for the form validity
+const isFormValid = computed(() => {
+  return (
     selectedDate.value && 
     selectedTime.value && 
-    Object.values(selectedServices.value).some(count => count > 0)
+    Object.values(selectedServices.value || {}).some(count => count > 0) &&
+    totalPrice.value > 0
   );
-  
-  const hasSelectedServices = computed(() => Object.keys(selectedServices.value).length > 0);
-  
-  const formattedDate = computed(() => 
-    selectedDate.value ? selectedDate.value.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''
-  );
-  
-  const formatAppointmentDate = (date) => 
-    new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  
-  // const formatDuration = (minutes) => {
-  //   const hours = Math.floor(minutes / 60);
-  //   const mins = minutes % 60;
-  //   return `${hours}h ${mins}m`;
-  // };
+});
 
-  const getServiceName = (serviceId) => services.value.find(s => s.id === serviceId)?.name || '';
-  const getServicePrice = (serviceId) => services.value.find(s => s.id === serviceId)?.price || 0;
-  // const getServiceDuration = (serviceId) => services.value.find(s => s.id === serviceId)?.duration || 0;
-  
-  const isAppointmentCancelledOrPending = (appointment) => {
-    return appointment.status === 'cancelled' || appointment.status === 'pending cancellation';
-  };
-  
-  const fetchServices = () => {
-    const servicesRef = collection(database, 'services');
-    return onSnapshot(servicesRef, (snapshot) => {
-      const seenNames = new Set();
-      services.value = snapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            name: data.name,
-            icon: getIconForService(data.name)
-          };
-        })
-        .filter(service => {
-          if (seenNames.has(service.name)) {
-            return false;
-          }
-          seenNames.add(service.name);
-          return true;
-        });
-      console.log('Fetched services:', services.value);
-    }, (error) => {
-      console.error('Error fetching services:', error);
-    });
-  };
-  
+const hasSelectedServices = computed(() => Object.keys(selectedServices.value).length > 0);
 
-  
+const formattedDate = computed(() => 
+  selectedDate.value ? selectedDate.value.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''
+);
 
-  const fetchTreatments = async (service) => {
+const formatAppointmentDate = (date) => 
+  new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+const getServiceName = (serviceId) => services.value.find(s => s.id === serviceId)?.name || '';
+const getServicePrice = (serviceId) => services.value.find(s => s.id === serviceId)?.price || 0;
+
+const isAppointmentCancelledOrPending = (appointment) => {
+  return appointment.status === 'cancelled' || appointment.status === 'pending cancellation';
+};
+
+const fetchServices = () => {
+  const servicesRef = collection(database, 'services');
+  return onSnapshot(servicesRef, (snapshot) => {
+    const seenNames = new Set();
+    services.value = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          icon: getIconForService(data.name)
+        };
+      })
+      .filter(service => {
+        if (seenNames.has(service.name)) {
+          return false;
+        }
+        seenNames.add(service.name);
+        return true;
+      });
+    console.log('Fetched services:', services.value);
+  }, (error) => {
+    console.error('Error fetching services:', error);
+  });
+};
+
+const fetchTreatments = async (service) => {
   try {
     isLoadingTreatments.value = true;
     const treatmentsCollection = collection(database, 'treatments');
@@ -775,64 +871,167 @@
   }
 };
 
-
+// Modified showTreatmentList to properly handle previous quantities
 const showTreatmentList = async (service) => {
   console.log('Showing treatment list for service:', JSON.stringify(service, null, 2));
   selectedService.value = service;
   isTreatmentListModalVisible.value = true;
   await fetchTreatments(service);
+  
+  // Restore previous selections for this service if they exist
+  if (selectedTreatmentsHistory.value[service.id]) {
+    const previousSelections = selectedTreatmentsHistory.value[service.id];
+    // Filter out the quantity and total properties
+    const { quantity, total, ...treatmentSelections } = previousSelections;
+    selectedTreatments.value = { ...treatmentSelections };
+  } else {
+    selectedTreatments.value = {};
+  }
 };
-  const closeTreatmentListModal = () => {
-    isTreatmentListModalVisible.value = false;
-    selectedService.value = null;
-    treatments.value = [];
+
+// Add a helper function to get the correct quantity for display
+const getServiceQuantity = (serviceId) => {
+  return selectedServices.value[serviceId] || 0;
+};
+
+
+// Modified closeTreatmentListModal to not clear selectedTreatments
+const closeTreatmentListModal = () => {
+  isTreatmentListModalVisible.value = false;
+  selectedService.value = null;
+  treatments.value = [];
+  // Don't reset selectedTreatments here anymore
+};
+
+const selectTreatment = (treatment) => {
+  selectedTreatments.value = {
+    ...selectedTreatments.value,
+    [treatment.id]: 1
   };
-  
-  const selectTreatment = (treatment) => {
-    if (selectedService.value) {
-      selectedServices.value = {
-        ...selectedServices.value,
-        [selectedService.value.id]: (selectedServices.value[selectedService.value.id] || 0) + 1
-      };
-      closeTreatmentListModal();
+};
+
+const incrementTreatment = (treatment) => {
+  selectedTreatments.value = {
+    ...selectedTreatments.value,
+    [treatment.id]: (selectedTreatments.value[treatment.id] || 0) + 1
+  };
+};
+
+const decrementTreatment = (treatment) => {
+  const currentCount = selectedTreatments.value[treatment.id] || 0;
+  if (currentCount > 0) {
+    selectedTreatments.value = {
+      ...selectedTreatments.value,
+      [treatment.id]: currentCount - 1
+    };
+    if (selectedTreatments.value[treatment.id] === 0) {
+      const { [treatment.id]: _, ...rest } = selectedTreatments.value;
+      selectedTreatments.value = rest;
     }
-  };
-  
-  watch(selectedDate, updateUnavailableTimeSlots);
-  watch(treatments, (newTreatments) => {
-    console.log('Treatments updated:', newTreatments);
-  }, { deep: true });
-  
-  const saveRoute = () => {
-    localStorage.setItem('lastRoute', router.currentRoute.value.fullPath);
-  };
-  
-  watch(() => router.currentRoute.value.fullPath, saveRoute);
-  
-  onMounted(() => {
-    const lastRoute = localStorage.getItem('lastRoute');
-    if (lastRoute === '/appointment') {
-      router.push('/appointment');
-    }
-  
-    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        console.log('User is authenticated:', user.uid);
-        await fetchAppointments();
-      } else {
-        console.log('User is not authenticated');
-        router.push('/login');
+  }
+};
+
+// Add safety checks to the confirm treatment selection function
+const confirmTreatmentSelection = async () => {
+  if (!selectedService.value || !treatments.value) {
+    console.error('Required data is missing');
+    return;
+  }
+
+  try {
+    isConfirmingTreatment.value = true;
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    let serviceTotal = 0;
+    let totalQuantity = 0;
+    
+    Object.entries(selectedTreatments.value || {}).forEach(([treatmentId, quantity]) => {
+      const treatment = treatments.value.find(t => t.id === treatmentId);
+      if (treatment && treatment.price) {
+        serviceTotal += treatment.price * quantity;
+        totalQuantity += parseInt(quantity) || 0;
       }
     });
-  
-    const unsubscribeServices = fetchServices();
-  
-    onUnmounted(() => {
-      unsubscribeAuth();
-      unsubscribeServices();
-    });
+    
+    // Update the history with proper null checks
+    if (selectedService.value.id) {
+      selectedTreatmentsHistory.value = {
+        ...selectedTreatmentsHistory.value,
+        [selectedService.value.id]: {
+          ...(selectedTreatments.value || {}),
+          total: serviceTotal,
+          quantity: totalQuantity
+        }
+      };
+    }
+    
+    // Update the current total
+    currentTotal.value = Object.values(selectedTreatmentsHistory.value || {})
+      .reduce((sum, serviceHistory) => {
+        if (!serviceHistory || typeof serviceHistory.total === 'undefined') {
+          return sum;
+        }
+        return sum + (serviceHistory.total || 0);
+      }, 0);
+    
+    // Update selected services
+    if (selectedService.value.id) {
+      selectedServices.value = {
+        ...selectedServices.value,
+        [selectedService.value.id]: totalQuantity
+      };
+    }
+    
+    isConfirmingTreatment.value = false;
+    isTreatmentConfirmed.value = true;
+    
+    setTimeout(() => {
+      isTreatmentConfirmed.value = false;
+      closeTreatmentListModal();
+    }, 1000);
+  } catch (error) {
+    console.error('Error in confirmTreatmentSelection:', error);
+    isConfirmingTreatment.value = false;
+  }
+};
+
+// Add new function to calculate total from history
+const calculateTotalFromHistory = () => {
+  let total = 0;
+  Object.values(selectedTreatmentsHistory.value).forEach(serviceHistory => {
+    if (serviceHistory.total) {
+      total += serviceHistory.total;
+    }
   });
-  </script>
+  return total;
+};
+
+// Add a reset function for currentTotal when needed
+const resetCurrentTotal = () => {
+  currentTotal.value = 0;
+};
+
+const saveRoute = () => {
+  localStorage.setItem('lastRoute', router.currentRoute.value.fullPath);
+};
+
+watch(() => router.currentRoute.value.fullPath, saveRoute);
+
+onMounted(() => {
+  const lastRoute = localStorage.getItem('lastRoute');
+  if (lastRoute) {
+    router.push(lastRoute);
+  }
+
+  const unsubscribe = fetchServices();
+  fetchAppointments();
+
+  onUnmounted(() => {
+    unsubscribe();
+  });
+});
+</script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -848,7 +1047,7 @@ const showTreatmentList = async (service) => {
 
 .container {
   max-width: 1300px;
-  height: calc(100vh - 10rem); /* Account for header and some padding */
+  height: calc(100vh - 10rem);
   margin: 8rem auto 5rem;
   padding: 0 1rem;
   position: relative;
@@ -919,6 +1118,8 @@ const showTreatmentList = async (service) => {
 h2, h3 {
   color: #8B5CF6;
   margin-bottom: 1.5rem;
+  font-weight: 500;
+  font-size: 16px;
 }
 
 .appointment-card {
@@ -1055,14 +1256,25 @@ h2, h3 {
 .booking-form {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem; /* Reduced from 2rem to bring elements closer */
   flex-grow: 1;
+  padding-top: 0.5rem; /* Added to reduce top spacing */
+}
+
+.services-heading {
+  font-size: 16px;
+  color: #8B5CF6;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  padding-top: 0; 
+  margin-top: -20px
 }
 
 .service-options {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 1rem;
+  margin-bottom: .5rem;
 }
 
 .service-option {
@@ -1073,6 +1285,7 @@ h2, h3 {
   border-radius: 15px;
   transition: all 0.3s ease;
   background-color: #F3F4F6;
+  margin-top: -15px;
 }
 
 .service-button {
@@ -1211,6 +1424,7 @@ h2, h3 {
   margin-bottom: 1rem;
   position: relative;
   overflow: hidden;
+  margin-top: 15px;
 }
 
 .action-button::before {
@@ -1262,7 +1476,6 @@ h2, h3 {
   z-index: 1;
 }
 
-/* Custom Calendar Styles */
 .custom-calendar {
   width: 100%;
   min-width: 350px;
@@ -1363,7 +1576,6 @@ h2, h3 {
   cursor: not-allowed;
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1404,7 +1616,6 @@ h2, h3 {
   position: relative;
 }
 
-/* Indicator for Scrollable Content */
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #8B5CF6 #E5E7EB;
@@ -1544,7 +1755,6 @@ h2, h3 {
   color: #374151;
 }
 
-/* Update modal action buttons */
 .modal-actions {
   display: flex;
   gap: 1rem;
@@ -1599,28 +1809,37 @@ h2, h3 {
 }
 
 .confirmation-modal {
-  width: 200px;
+  width: 300px;
   height: 200px;
   display: flex;
   justify-content: center;
   align-items: center;
   text-align: center;
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
 }
 
 .confirmation-content {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 1rem;
+}
+
+.confirmation-content p {
+  color: #1F2937;
+  font-size: 1.1rem;
+  font-weight: 500;
 }
 
 .spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
+  border: 4px solid rgba(139, 92, 246, 0.1);
   border-left-color: #8B5CF6;
   border-radius: 50%;
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
 }
 
 .check-icon {
@@ -1631,7 +1850,6 @@ h2, h3 {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 1rem;
 }
 
 .check-icon::before {
@@ -1650,9 +1868,36 @@ h2, h3 {
   overflow-y: auto;
   padding-right: 1rem;
 }
-/* Add new styles for treatment list modal */
+
+/* Add new styles for treatments display */
+.selected-treatments {
+  margin-top: 0.5rem;
+  padding-left: 1rem;
+  border-left: 2px solid #E5E7EB;
+}
+
+.treatment-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6B7280;
+  margin-top: 0.25rem;
+}
+
+.treatment-quantity {
+  color: #8B5CF6;
+  font-weight: 500;
+}
+
+.treatment-price {
+  margin-left: auto;
+  color: #8B5CF6;
+  font-weight: 600;
+}
+
 .treatment-list-modal {
-  max-width: 800px;
+  max-width: 600px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -1667,7 +1912,7 @@ h2, h3 {
 .treatments-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .treatment-card {
@@ -1680,12 +1925,19 @@ h2, h3 {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .treatment-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: #C4B5FD;
+}
+
+.treatment-card.selected {
   border-color: #8B5CF6;
+  background-color: #F3F4F6;
+  box-shadow: 0 0 0 2px #8B5CF6;
 }
 
 .treatment-icon-wrapper {
@@ -1761,43 +2013,101 @@ h2, h3 {
   color: #6B7280;
 }
 
-.spinner {
-  border: 3px solid rgba(139, 92, 246, 0.1);
-  border-radius: 50%;
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  background-color: white;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+}
+
+.quantity-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background-color: #8B5CF6;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quantity-button:hover {
+  background-color: #7C3AED;
+}
+
+.quantity {
+  font-weight: 600;
+  color: #1F2937;
+  min-width: 20px;
+  text-align: center;
+}
+
+.treatment-modal-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #E5E7EB;
+}
+
+.confirm-button:disabled {
+  background-color: #E5E7EB;
+  cursor: not-allowed;
+}
+
+.confirm-spinner {
+  border: 3px solid #f3f3f3;
   border-top: 3px solid #8B5CF6;
-  width: 40px;
-  height: 40px;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.confirm-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #ffffff;
 }
 
-/* Custom Scrollbar Styling */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #8B5CF6 #E5E7EB;
+.confirm-success svg {
+  width: 24px;
+  height: 24px;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #E5E7EB;
-  border-radius: 4px;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #8B5CF6;
-  border-radius: 4px;
+.service-option {
+  position: relative; 
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #7C3AED;
+.quantity-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #8B5CF6;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
 }
 
 @media (max-width: 1024px) {
@@ -1834,7 +2144,6 @@ h2, h3 {
   }
 }
 
-/* Responsive styles */
 @media (max-width: 640px) {
   .treatments-grid {
     grid-template-columns: 1fr;
