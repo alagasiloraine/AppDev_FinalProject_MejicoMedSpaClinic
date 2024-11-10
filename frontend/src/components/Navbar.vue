@@ -86,7 +86,7 @@
               <UserCog2 class="item-icon" />
               <span>Customize Profile</span>
             </router-link>
-            <router-link to="/profile/security" class="dropdown-item">
+            <router-link to="/security" class="dropdown-item">
               <Shield class="item-icon" />
               <span>Personal Security</span>
             </router-link>
