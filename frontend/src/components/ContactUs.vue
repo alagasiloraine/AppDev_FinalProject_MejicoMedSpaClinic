@@ -21,7 +21,7 @@
           <div class="get-in-touch">
             <div class="get-in-touch-content">
               <h2>Get in touch</h2>
-              <p>We’re here to help you feel and look your best! For appointments, inquiries, 
+              <p>We're here to help you feel and look your best! For appointments, inquiries, 
                 or any assistance, reach out to us through the details below. Our dedicated 
                 team is ready to support your wellness journey at Mejico MedSpa Clinic</p>
 
@@ -76,24 +76,57 @@
               <div class="form-row">
                 <div>
                   <label for="name">Name</label>
-                  <input id="name" v-model="form.name" type="text" placeholder="Enter your name here" />
+                  <input 
+                    id="name" 
+                    v-model="form.name" 
+                    type="text" 
+                    placeholder="Enter your name here"
+                    required 
+                  />
                 </div>
                 <div>
                   <label for="email">Email</label>
-                  <input id="email" v-model="form.email" type="email" placeholder="Enter your name email" />
+                  <input 
+                    id="email" 
+                    v-model="form.email" 
+                    type="email" 
+                    placeholder="Enter your email"
+                    required 
+                  />
                 </div>
               </div>
               
               <div>
                 <label for="subject">Subject</label>
-                <input id="subject" v-model="form.subject" type="text" placeholder="Enter your subject here" />
+                <input 
+                  id="subject" 
+                  v-model="form.subject" 
+                  type="text" 
+                  placeholder="Enter your subject here"
+                  required 
+                />
               </div>
               <div>
                 <label for="message">Message</label>
-                <textarea id="message" v-model="form.message" rows="6" placeholder="Enter your message here"></textarea>
+                <textarea 
+                  id="message" 
+                  v-model="form.message" 
+                  rows="6" 
+                  placeholder="Enter your message here"
+                  required
+                ></textarea>
               </div>
 
-              <button type="submit">Send</button>
+              <button 
+                type="submit" 
+                :disabled="loading"
+              >
+                {{ loading ? 'Sending...' : 'Send' }}
+              </button>
+
+              <div v-if="error" class="error-message">
+                {{ error }}
+              </div>
             </form>
           </div>
         </div>
@@ -113,6 +146,22 @@
     </div>
 
     <FooterComponent />
+
+    <!-- New Notification Component -->
+    <Transition name="fade">
+      <div v-if="showNotification" class="notification" @click="showNotification = false">
+        <div class="notification-content" @click.stop>
+          <div class="success-icon">
+            <CheckIcon class="check" />
+          </div>
+          <h3>Success!</h3>
+          <p>Your message has been sent successfully</p>
+          <button class="close-button" @click="showNotification = false">
+            <XIcon class="x-icon" />
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -120,6 +169,7 @@
 import Navbar from './Navbar.vue';
 import FooterComponent from './Footer.vue';
 import { ref } from 'vue';
+import emailjs from '@emailjs/browser';
 import {
   MapPinIcon,
   PhoneIcon,
@@ -127,7 +177,9 @@ import {
   FacebookIcon,
   InstagramIcon,
   TwitterIcon,
-  YoutubeIcon
+  YoutubeIcon,
+  CheckIcon,
+  XIcon
 } from 'lucide-vue-next';
 
 const form = ref({
@@ -137,14 +189,42 @@ const form = ref({
   message: ''
 });
 
-const submitForm = () => {
-  console.log('Form submitted:', form.value);
-  form.value = {
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
-  };
+const loading = ref(false);
+const success = ref(false);
+const error = ref('');
+const showNotification = ref(false);
+
+const submitForm = async () => {
+  try {
+    loading.value = true;
+    error.value = '';
+    success.value = false;
+    
+    const templateParams = {
+      from_name: form.value.name,
+      from_email: form.value.email,
+      subject: form.value.subject,
+      message: form.value.message,
+      to_name: "Mejico MedSpa Clinic"
+    };
+
+    await emailjs.send(
+      'service_tsc05jy', // Use your existing EmailJS service ID
+      'template_hy8jr6n', // Use your existing EmailJS template ID
+      templateParams,
+      'wOA-rb4GlzrB2-5VT' // Use your existing EmailJS public key
+    );
+
+    success.value = true;
+    showNotification.value = true;
+    setTimeout(() => {
+      showNotification.value = false;
+    }, 3000); // Hide after 3 seconds
+  } catch (err) {
+    error.value = 'Failed to send message. Please try again.';
+  } finally {
+    loading.value = false;
+  }
 };
 </script>
 
@@ -422,6 +502,11 @@ button:hover {
   background-color: #524690;
 }
 
+button:disabled {
+  background-color: #a5a5a5;
+  cursor: not-allowed;
+}
+
 .map-container {
   margin-top: 5rem;
   border-radius: 1rem;
@@ -432,6 +517,118 @@ button:hover {
 .map-section {
   height: 400px;
   width: 100%;
+}
+
+.notification {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.notification-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 90%;
+  width: 400px;
+  position: relative;
+}
+
+.success-icon {
+  width: 4rem;
+  height: 4rem;
+  background-color: #6656b3;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.check {
+  color: white;
+  width: 2rem;
+  height: 2rem;
+  animation: scale-up 0.3s ease-out;
+}
+
+.notification-content h3 {
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.notification-content p {
+  color: #6b7280;
+  text-align: center;
+  margin: 0;
+}
+
+.close-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.close-button:hover {
+  color: #4b5563;
+}
+
+.x-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.error-message {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-radius: 0.375rem;
+  text-align: center;
+}
+
+/* Animation classes */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes scale-up {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 768px) {

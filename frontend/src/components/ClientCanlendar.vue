@@ -9,10 +9,10 @@
         <p class="appointments-subtitle">{{ userAppointments.length }} upcoming</p>
         
         <div class="appointments-list">
-          <div v-for="(appointment, index) in userAppointments" :key="index" class="appointment-card">
+          <div v-for="appointment in userAppointments" :key="appointment.id" class="appointment-card">
             <div class="appointment-header">
-              <span class="service-tag" :class="getServiceTagColor(appointment.service)">{{ appointment.service }}</span>
-              <span class="appointment-time">{{ formatTime(appointment.date) }}</span>
+              <span class="service-tag" :style="{ backgroundColor: getServiceTagColor(appointment.service) }">{{ appointment.service }}</span>
+              <span class="appointment-time">{{ formatTime(appointment.time) }}</span>
             </div>
             <h3 class="appointment-date">{{ formatDate(appointment.date) }}</h3>
             <p class="appointment-duration">Duration: {{ appointment.duration }} min</p>
@@ -83,50 +83,54 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, XIcon } from 'lucide-vue-next'
 import Navbar from './Navbar.vue'
 import FooterComponent from './Footer.vue'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { database } from '../firebase' // Ensure you have this firebase config file
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const currentDate = ref(new Date())
 const selectedDate = ref(null)
+const userAppointments = ref([])
 
-const userAppointments = ref([
-  {
-    date: new Date(2024, 10, 11, 14, 30),
-    service: 'Nail Care',
-    duration: 60,
-    color: '#8B5CF6'
-  },
-  {
-    date: new Date(2024, 10, 15, 10, 0),
-    service: 'Facial Treatment',
-    duration: 90,
-    color: '#EC4899'
-  },
-  {
-    date: new Date(2024, 10, 22, 15, 45),
-    service: 'Massage Therapy',
-    duration: 120,
-    color: '#14B8A6'
-  }
-])
+// Fetch approved appointments from Firestore
+onMounted(() => {
+  const appointmentsRef = collection(database, 'appointments')
+  const q = query(
+    appointmentsRef,
+    where('status', '==', 'approved')
+  )
+  
+  onSnapshot(q, (snapshot) => {
+    userAppointments.value = snapshot.docs.map(doc => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        date: data.date, // Assuming date is stored as string "YYYY-MM-DD"
+        time: data.time, // Assuming time is stored as string "HH:mm"
+        service: Array.isArray(data.services) ? data.services[0] : (data.service || 'Appointment'),
+        duration: data.duration || 60,
+        color: data.color || '#8B5CF6'
+      }
+    })
+  })
+})
 
-// Add new truncate text function
 const truncateText = (text, maxLength) => {
-  if (text.length <= maxLength) return text
-  return text.slice(0, maxLength) + '...'
+  if (!text) return ''
+  return text.length <= maxLength ? text : text.slice(0, maxLength) + '...'
 }
 
 const getAppointmentColor = (date) => {
   const appointment = userAppointments.value.find(apt => 
-    apt.date.toDateString() === date.toDateString()
+    apt.date === formatDateForComparison(date)
   )
-  return appointment ? appointment.color : '#8B5CF6'
+  return appointment ? getServiceTagColor(appointment.service) : '#8B5CF6'
 }
 
-// Rest of the script functions remain the same
 const currentMonthName = computed(() => {
   return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(currentDate.value)
 })
@@ -206,40 +210,64 @@ const isToday = (date) => {
   return date.toDateString() === new Date().toDateString()
 }
 
+const formatDateForComparison = (date) => {
+  return date.toISOString().split('T')[0]
+}
+
 const hasAppointments = (date) => {
-  return userAppointments.value.some(apt => apt.date.toDateString() === date.toDateString())
+  return userAppointments.value.some(apt => apt.date === formatDateForComparison(date))
 }
 
 const getAppointmentLabel = (date) => {
-  const appointment = userAppointments.value.find(apt => 
-    apt.date.toDateString() === date.toDateString()
-  )
+  const appointment = userAppointments.value.find(apt => apt.date === formatDateForComparison(date))
   return appointment ? appointment.service : ''
 }
 
-const formatTime = (date) => {
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  }).format(date)
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  try {
+    const [hours, minutes] = timeStr.split(':').map(Number)
+    const date = new Date()
+    date.setHours(hours, minutes)
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).format(date)
+  } catch (error) {
+    console.error('Error formatting time:', error)
+    return timeStr
+  }
 }
 
-const formatDate = (date) => {
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric'
-  }).format(date)
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    }).format(date)
+  } catch (error) {
+    console.error('Error formatting date:', error)
+    return dateStr
+  }
 }
 
 const getServiceTagColor = (service) => {
   const colors = {
-    'Nail Care': 'purple',
-    'Facial Treatment': 'pink',
-    'Massage Therapy': 'teal'
+    'Nail Care': '#8B5CF6', // Purple
+    'Check Up': '#EC4899', // Pink
+    'Checkup': '#EC4899', // Pink (alternative spelling)
+    'Massage': '#10B981', // Green
+    'Hair Care': '#3B82F6', // Blue
+    'Facial Treatment': '#F59E0B', // Amber
+    'Spa Treatment': '#14B8A6', // Teal
+    'Dental Care': '#EF4444', // Red
+    'Eye Exam': '#6366F1'  // Indigo
   }
-  return colors[service] || 'purple'
+  return colors[service] || '#8B5CF6' // Default to purple if service not found
 }
 </script>
 
@@ -270,6 +298,10 @@ const getServiceTagColor = (service) => {
   box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
   margin-top: 30px;
   margin-left: 20px;
+  height: 855px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 40px;
 }
 
 .appointments-title {
@@ -286,9 +318,29 @@ const getServiceTagColor = (service) => {
 }
 
 .appointments-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 61, 124, 0.3) transparent;
+  padding-right: 0.5rem;
+}
+
+.appointments-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.appointments-list::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.appointments-list::-webkit-scrollbar-thumb {
+  background-color: rgba(79, 61, 124, 0.3);
+  border-radius: 3px;
+}
+
+.appointments-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(79, 61, 124, 0.5);
 }
 
 .appointment-card {
@@ -296,6 +348,7 @@ const getServiceTagColor = (service) => {
   border-radius: 0.75rem;
   padding: 1rem;
   border: 1px solid rgba(79, 61, 124, 0.08);
+  margin-bottom: 0.75rem;
 }
 
 .appointment-header {
@@ -313,9 +366,6 @@ const getServiceTagColor = (service) => {
   font-weight: 500;
 }
 
-.service-tag.purple { background: #8B5CF6; }
-.service-tag.pink { background: #EC4899; }
-.service-tag.teal { background: #14B8A6; }
 
 .appointment-time {
   color: #4F3D7C;
@@ -371,7 +421,7 @@ const getServiceTagColor = (service) => {
   box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
   width: 100%;
   max-width: 850px;
-  margin-top: 30px;
+  margin-top: 40px;
 }
 
 .calendar-header {
@@ -506,6 +556,8 @@ const getServiceTagColor = (service) => {
 
   .appointments-container {
     order: 2;
+    height: auto;
+    max-height: 500px;
   }
 
   .calendar-container {
