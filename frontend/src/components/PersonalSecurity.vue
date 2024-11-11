@@ -154,9 +154,9 @@
                 <KeyIcon class="section-icon" />
                 <h2 class="section-title">Password</h2>
               </div>
-              <span class="section-badge" :class="{ 'warning': passwordLastChanged > 90 }">
+              <span class="section-badge" :class="{ 'warning': lastPasswordChange.days > 90 }">
                 <ClockIcon class="badge-icon" />
-                Last changed {{ passwordLastChanged }} days ago
+                {{ lastPasswordChange.text }}
               </span>
             </div>
 
@@ -303,9 +303,58 @@
               </span>
             </button>
           </section>
+
+          <!-- Changes History Section -->
+          <section class="security-section history-section">
+            <div class="section-header">
+              <div class="section-title-group">
+                <HistoryIcon class="section-icon" />
+                <h2 class="section-title">Changes History</h2>
+              </div>
+              <span class="section-badge">
+                <ClockIcon class="badge-icon" />
+                Last 30 days
+              </span>
+            </div>
+
+            <div class="history-timeline">
+              <div v-if="securityChanges.length > 0" class="timeline-container">
+                <div v-for="change in securityChanges" 
+                    :key="change.id" 
+                    class="timeline-item"
+                    :class="{ 'email-change': change.type === 'email', 'password-change': change.type === 'password' }"
+                >
+                  <div class="timeline-icon">
+                    <MailIcon v-if="change.type === 'email'" class="icon" />
+                    <KeyIcon v-if="change.type === 'password'" class="icon" />
+                  </div>
+                  <div class="timeline-content">
+                    <div class="timeline-header">
+                      <h3 class="timeline-title">{{ change.title }}</h3>
+                      <span class="timeline-date">{{ formatDate(change.timestamp) }}</span>
+                    </div>
+                    <p class="timeline-description">{{ change.description }}</p>
+                    <div class="timeline-meta">
+                      <span class="timeline-status" :class="change.status">
+                        <CheckCircleIcon v-if="change.status === 'success'" class="status-icon" />
+                        <AlertCircleIcon v-if="change.status === 'failed'" class="status-icon" />
+                        {{ change.status === 'success' ? 'Successful' : 'Failed' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-history">
+                <HistoryIcon class="empty-icon" />
+                <h3 class="empty-title">No Recent Changes</h3>
+                <p class="empty-description">Your security settings haven't been modified in the last 30 days</p>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
+
     <FooterComponent />
     
     <!-- Pop-up Notification -->
@@ -326,7 +375,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { 
   Lock as LockIcon,
   Mail as MailIcon,
@@ -339,11 +388,14 @@ import {
   Clock as ClockIcon,
   Shield as ShieldIcon,
   ShieldCheck as ShieldCheckIcon,
-  Pencil as PencilIcon
+  Pencil as PencilIcon,
+  History as HistoryIcon,
+  Globe as GlobeIcon,
+  AlertCircle as AlertCircleIcon
 } from 'lucide-vue-next'
 import Navbar from './Navbar.vue'
 import FooterComponent from './Footer.vue'
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore'
+import { getFirestore, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore'
 import { getAuth, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
 import { sendEmail } from '../utils/email'
 import { database } from '../firebase'
@@ -365,7 +417,7 @@ const showVerificationForm = ref(false)
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPasswordForm = ref(false)
-const passwordLastChanged = ref(45)
+// const passwordLastChanged = ref(45)
 const showCurrentPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
@@ -374,15 +426,44 @@ const showConfirmPassword = ref(false)
 const showNotification = ref(false)
 const notificationMessage = ref('')
 
+// Security changes state
+// First, ensure securityChanges is properly initialized
+const securityChanges = ref([])
+
+// // Add function to add new change to history
+// const addChangeToHistory = async (change) => {
+//   const location = await getCurrentLocation()
+//   securityChanges.value.unshift({
+//     id: Date.now(),
+//     ...change,
+//     timestamp: new Date(),
+//     location
+//   })
+// }
+
 // Fetch user data on mount
 onMounted(async () => {
   if (auth.currentUser) {
     const userDoc = await getDoc(doc(database, 'users', auth.currentUser.uid))
     if (userDoc.exists()) {
       currentEmail.value = userDoc.data().email
+      // Load changes history if it exists
+      const historyDoc = await getDoc(doc(database, 'security_changes', auth.currentUser.uid))
+      if (historyDoc.exists()) {
+        securityChanges.value = historyDoc.data().changes || []
+      }
     }
   }
 })
+
+// Save changes history to database whenever it updates
+watch(securityChanges, async (newChanges) => {
+  if (auth.currentUser) {
+    await setDoc(doc(database, 'security_changes', auth.currentUser.uid), {
+      changes: newChanges
+    })
+  }
+}, { deep: true })
 
 // Password validation
 const hasMinLength = computed(() => newPassword.value.length >= 8)
@@ -449,6 +530,14 @@ const handleEmailUpdate = async () => {
     showEmailForm.value = false
     showVerificationForm.value = true
     showPopupNotification('Verification code sent to your new email address.')
+
+    // Add to security changes
+    addChangeToHistory({
+      type: 'email',
+      title: 'Email Change Initiated',
+      description: `Email change initiated from ${currentEmail.value} to ${newEmail.value}`,
+      status: 'success'
+    })
   } catch (error) {
     if (error.code === 'auth/requires-recent-login') {
       showPopupNotification('For security reasons, please log out and log back in before changing your email.')
@@ -456,9 +545,18 @@ const handleEmailUpdate = async () => {
       showPopupNotification('Error initiating email change: ' + error.message)
     }
     console.error('Email change error:', error)
+
+    // Add failed attempt to security changes
+    addChangeToHistory({
+      type: 'email',
+      title: 'Email Change Failed',
+      description: 'Unsuccessful attempt to change email address',
+      status: 'failed'
+    })
   }
 }
 
+// Also update the verifyEmailChange function to include proper timestamp
 const verifyEmailChange = async () => {
   try {
     const userDoc = await getDoc(doc(database, 'users', auth.currentUser.uid))
@@ -482,8 +580,26 @@ const verifyEmailChange = async () => {
     currentEmail.value = userData.pendingEmail
     showVerificationForm.value = false
     showPopupNotification('Your email has been successfully updated!')
+
+    // Add to security changes with proper timestamp
+    addChangeToHistory({
+      type: 'email',
+      title: 'Email Address Updated',
+      description: `Email address changed to ${currentEmail.value}`,
+      status: 'success',
+      timestamp: new Date().getTime() // Add timestamp here
+    })
   } catch (error) {
     showPopupNotification('Error verifying email change: ' + error.message)
+
+    // Add failed attempt to security changes with proper timestamp
+    addChangeToHistory({
+      type: 'email',
+      title: 'Email Verification Failed',
+      description: 'Unsuccessful attempt to verify email change',
+      status: 'failed',
+      timestamp: new Date().getTime() // Add timestamp here
+    })
   }
 }
 
@@ -510,10 +626,59 @@ const handlePasswordUpdate = async () => {
     newPassword.value = ''
     confirmPassword.value = ''
     showPopupNotification('Your password has been successfully updated!')
+
+    // Add to security changes
+    addChangeToHistory({
+      type: 'password',
+      title: 'Password Changed',
+      description: 'Account password was successfully updated',
+      status: 'success'
+    })
   } catch (error) {
     showPopupNotification('Error updating password: ' + error.message)
+
+    // Add failed attempt to security changes
+    addChangeToHistory({
+      type: 'password',
+      title: 'Password Change Failed',
+      description: 'Unsuccessful attempt to change account password',
+      status: 'failed'
+    })
   }
 }
+
+// Update the lastPasswordChange computed property with proper null checks
+const lastPasswordChange = computed(() => {
+  // Check if securityChanges exists and has items
+  if (!securityChanges.value || !Array.isArray(securityChanges.value)) {
+    return {
+      days: 0,
+      text: 'Never changed'
+    }
+  }
+
+  // Find the most recent successful password change
+  const lastChange = securityChanges.value.find(
+    change => change && change.type === 'password' && change.status === 'success'
+  )
+  
+  if (!lastChange || !lastChange.timestamp) {
+    return {
+      days: 0,
+      text: 'Never changed'
+    }
+  }
+
+  const now = new Date()
+  const changeDate = new Date(lastChange.timestamp)
+  const diffTime = Math.abs(now - changeDate)
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  return {
+    days: diffDays,
+    text: `Last changed ${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+  }
+})
 
 // Computed properties
 const passwordStrength = computed(() => {
@@ -532,15 +697,19 @@ const passwordStrengthText = computed(() => {
   return 'Strong'
 })
 
+// Update the getPasswordAgeClass computed property with null check
 const getPasswordAgeClass = computed(() => {
-  if (passwordLastChanged.value > 90) return 'warning'
-  if (passwordLastChanged.value > 60) return 'moderate'
+  const days = lastPasswordChange.value?.days || 0
+  if (days > 90) return 'warning'
+  if (days > 60) return 'moderate'
   return 'good'
 })
 
+// Update the getPasswordAgeStatus computed property with null check
 const getPasswordAgeStatus = computed(() => {
-  if (passwordLastChanged.value > 90) return 'Change Recommended'
-  if (passwordLastChanged.value > 60) return 'Good'
+  const days = lastPasswordChange.value?.days || 0
+  if (days > 90) return 'Change Recommended'
+  if (days > 60) return 'Good'
   return 'Excellent'
 })
 
@@ -562,6 +731,77 @@ const cancelPasswordChange = () => {
   currentPassword.value = ''
   newPassword.value = ''
   confirmPassword.value = ''
+}
+
+// Then update the formatDate function to properly handle the timestamp
+const formatDate = (timestamp) => {
+  // If no timestamp provided, return empty string
+  if (!timestamp) return ''
+  
+  try {
+    // Convert timestamp to Date object
+    const date = new Date(timestamp)
+    
+    // Format options for Philippine time
+    const options = {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }
+
+    // Get current date for comparison
+    const now = new Date()
+    const diffTime = Math.abs(now - date)
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+      return `Today at ${date.toLocaleTimeString('en-PH', options)}`
+    } else if (diffDays === 1) {
+      return `Yesterday at ${date.toLocaleTimeString('en-PH', options)}`
+    } else if (diffDays < 30) {
+      return `${diffDays} days ago at ${date.toLocaleTimeString('en-PH', options)}`
+    } else {
+      return date.toLocaleString('en-PH', options)
+    }
+  } catch (error) {
+    console.error('Date formatting error:', error)
+    return 'Date unavailable'
+  }
+}
+
+// First, modify the addChangeToHistory function to properly store timestamps
+const addChangeToHistory = async (change) => {
+  const location = await getCurrentLocation()
+  const timestamp = new Date().getTime() // Store as milliseconds timestamp
+  
+  securityChanges.value.unshift({
+    id: Date.now(),
+    ...change,
+    timestamp,
+    location
+  })
+
+  // Save to database
+  if (auth.currentUser) {
+    await setDoc(doc(database, 'security_changes', auth.currentUser.uid), {
+      changes: securityChanges.value
+    })
+  }
+}
+// Helper function to get current location
+const getCurrentLocation = async () => {
+  try {
+    const response = await fetch('https://api.ipapi.com/api/check?access_key=YOUR_API_KEY')
+    const data = await response.json()
+    return `${data.city}, ${data.country_code}`
+  } catch (error) {
+    console.error('Error getting location:', error)
+    return 'Unknown Location'
+  }
 }
 </script>
 
@@ -1043,6 +1283,7 @@ input:focus {
   animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }
 
+/* Pop-up Notification Styles */
 .notification-overlay {
   position: fixed;
   top: 0;
@@ -1113,6 +1354,146 @@ input:focus {
   opacity: 0;
 }
 
+.history-section {
+  grid-column: 1 / -1;
+  margin-top: 1.5rem;
+}
+
+.timeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.timeline-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e5e7eb;
+}
+
+.email-change .timeline-icon {
+  border-color: #818cf8;
+  background: #eef2ff;
+}
+
+.password-change .timeline-icon {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.timeline-icon .icon {
+  width: 14px;
+  height: 14px;
+  color: #6366f1;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.25rem;
+}
+
+.timeline-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.timeline-date {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.timeline-description {
+  font-size: 0.75rem;
+  color: #4b5563;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timeline-status {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  border-radius: 1rem;
+}
+
+.timeline-status.success {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.timeline-status.failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.status-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.empty-history {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  border: 1px dashed #e5e7eb;
+}
+
+.empty-icon {
+  width: 32px;
+  height: 32px;
+  color: #9ca3af;
+  margin-bottom: 0.75rem;
+}
+
+.empty-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+}
+
+.empty-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+}
+
 @media (max-width: 1024px) {
   .security-sections {
     grid-template-columns: 1fr;
@@ -1157,6 +1538,21 @@ input:focus {
   .primary-button,
   .secondary-button {
     width: 100%;
+  }
+
+  .timeline-item {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .timeline-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .timeline-meta {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

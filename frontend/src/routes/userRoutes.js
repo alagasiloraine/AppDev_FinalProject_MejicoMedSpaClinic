@@ -8,6 +8,7 @@ import CustomizeProfile from '../components/CustomizeProfile.vue';
 import ContactUs from '../components/ContactUs.vue';
 import Appointment from '../components/Appointment.vue';
 import PersonalSecurity from '../components/PersonalSecurity.vue';
+import ClientCanlendar from '../components/ClientCanlendar.vue';
 
 // Export the routes array separately
 export const userRoutes = [
@@ -20,6 +21,7 @@ export const userRoutes = [
   { path: '/contact', name: 'ContactUs', component: ContactUs },
   { path: '/appointment', name: 'Appointment', component: Appointment },
   { path: '/security', name: 'PersonalSecurity', component: PersonalSecurity },
+  { path: '/calendar', name: 'ClientCalendar', component: ClientCanlendar },
 ];
 
 // You can still export the router if needed elsewhere

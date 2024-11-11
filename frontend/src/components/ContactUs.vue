@@ -42,7 +42,7 @@
                   </div>
                   <div>
                     <h3>Email Us</h3>
-                    <p>mejicomedicalspa@gmail.com</p>
+                    <p>mejicomdclinic@gmail.com</p>
                   </div>
                 </div>
 
@@ -76,21 +76,21 @@
               <div class="form-row">
                 <div>
                   <label for="name">Name</label>
-                  <input id="name" v-model="form.name" type="text" placeholder="Name" />
+                  <input id="name" v-model="form.name" type="text" placeholder="Enter your name here" />
                 </div>
                 <div>
                   <label for="email">Email</label>
-                  <input id="email" v-model="form.email" type="email" placeholder="Email" />
+                  <input id="email" v-model="form.email" type="email" placeholder="Enter your name email" />
                 </div>
               </div>
               
               <div>
                 <label for="subject">Subject</label>
-                <input id="subject" v-model="form.subject" type="text" placeholder="Subject" />
+                <input id="subject" v-model="form.subject" type="text" placeholder="Enter your subject here" />
               </div>
               <div>
                 <label for="message">Message</label>
-                <textarea id="message" v-model="form.message" rows="6" placeholder="Message"></textarea>
+                <textarea id="message" v-model="form.message" rows="6" placeholder="Enter your message here"></textarea>
               </div>
 
               <button type="submit">Send</button>

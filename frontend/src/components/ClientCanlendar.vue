@@ -1,298 +1,571 @@
 <template>
   <div class="calendar-wrapper">
-    <div class="calendar-container">
-      <div class="calendar-header">
-        <button @click="previousMonth" class="nav-button">
-          <ChevronLeftIcon class="icon" />
-        </button>
-        <h2>{{ currentMonthYear }}</h2>
-        <button @click="nextMonth" class="nav-button">
-          <ChevronRightIcon class="icon" />
-        </button>
+    <Navbar />
+    
+    <div class="calendar-layout">
+      <!-- Appointments Panel -->
+      <div class="appointments-container">
+        <h2 class="appointments-title">Your Scheduled Appointments</h2>
+        <p class="appointments-subtitle">{{ userAppointments.length }} upcoming</p>
+        
+        <div class="appointments-list">
+          <div v-for="(appointment, index) in userAppointments" :key="index" class="appointment-card">
+            <div class="appointment-header">
+              <span class="service-tag" :class="getServiceTagColor(appointment.service)">{{ appointment.service }}</span>
+              <span class="appointment-time">{{ formatTime(appointment.date) }}</span>
+            </div>
+            <h3 class="appointment-date">{{ formatDate(appointment.date) }}</h3>
+            <p class="appointment-duration">Duration: {{ appointment.duration }} min</p>
+            <div class="appointment-actions">
+              <button class="action-btn reschedule">
+                <ClockIcon class="h-3.5 w-3.5" />
+                Reschedule
+              </button>
+              <button class="action-btn cancel">
+                <XIcon class="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="weekdays">
-        <span v-for="day in weekdays" :key="day">{{ day }}</span>
-      </div>
-      <div class="calendar-grid">
-        <div
-          v-for="day in calendarDays"
-          :key="day.date"
-          :class="['calendar-day', { 'current-month': day.currentMonth, 'other-month': !day.currentMonth, 'today': day.isToday }]"
-        >
-          <span class="day-number">{{ day.dayOfMonth }}</span>
-          <div v-if="day.events.length" class="event-indicator">
-            <div class="event-dot"></div>
-            <div class="event-count">{{ day.events.length }}</div>
+
+      <!-- Calendar -->
+      <div class="calendar-container">
+        <div class="calendar-header">
+          <button class="nav-button" @click="previousMonth">
+            <ChevronLeftIcon class="h-4 w-4" />
+          </button>
+          <div class="month-year">
+            <h2 class="month">{{ currentMonthName }}</h2>
+            <span class="year">{{ currentYear }}</span>
+          </div>
+          <button class="nav-button" @click="nextMonth">
+            <ChevronRightIcon class="h-4 w-4" />
+          </button>
+        </div>
+
+        <div class="weekdays-header">
+          <span v-for="day in weekDays" :key="day" class="weekday">{{ day }}</span>
+        </div>
+
+        <div class="calendar-grid">
+          <div
+            v-for="(day, index) in calendarDays"
+            :key="index"
+            class="calendar-day"
+            :class="{
+              'current-month': day.currentMonth,
+              'other-month': !day.currentMonth,
+              'selected': isSelected(day.date),
+              'today': isToday(day.date),
+              'has-appointment': hasAppointments(day.date)
+            }"
+            @click="selectDate(day.date)"
+          >
+            <span class="day-number">{{ day.dayNumber }}</span>
+            <div class="appointment-labels">
+              <div 
+                v-if="hasAppointments(day.date)" 
+                class="appointment-label"
+                :style="{ backgroundColor: getAppointmentColor(day.date) }"
+              >
+                {{ truncateText(getAppointmentLabel(day.date), 8) }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <FooterComponent />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-vue-next';
+import { ref, computed } from 'vue'
+import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, XIcon } from 'lucide-vue-next'
+import Navbar from './Navbar.vue'
+import FooterComponent from './Footer.vue'
 
-const currentDate = ref(new Date());
-const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const currentDate = ref(new Date())
+const selectedDate = ref(null)
 
-const currentMonthYear = computed(() => {
-  return currentDate.value.toLocaleString('default', { month: 'long', year: 'numeric' });
-});
+const userAppointments = ref([
+  {
+    date: new Date(2024, 10, 11, 14, 30),
+    service: 'Nail Care',
+    duration: 60,
+    color: '#8B5CF6'
+  },
+  {
+    date: new Date(2024, 10, 15, 10, 0),
+    service: 'Facial Treatment',
+    duration: 90,
+    color: '#EC4899'
+  },
+  {
+    date: new Date(2024, 10, 22, 15, 45),
+    service: 'Massage Therapy',
+    duration: 120,
+    color: '#14B8A6'
+  }
+])
+
+// Add new truncate text function
+const truncateText = (text, maxLength) => {
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength) + '...'
+}
+
+const getAppointmentColor = (date) => {
+  const appointment = userAppointments.value.find(apt => 
+    apt.date.toDateString() === date.toDateString()
+  )
+  return appointment ? appointment.color : '#8B5CF6'
+}
+
+// Rest of the script functions remain the same
+const currentMonthName = computed(() => {
+  return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(currentDate.value)
+})
+
+const currentYear = computed(() => {
+  return currentDate.value.getFullYear()
+})
 
 const calendarDays = computed(() => {
-  const year = currentDate.value.getFullYear();
-  const month = currentDate.value.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
-
-  const days = [];
-  const today = new Date();
-
-  // Previous month days
-  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-    const date = new Date(year, month, -i);
+  const year = currentDate.value.getFullYear()
+  const month = currentDate.value.getMonth()
+  
+  const firstDayOfMonth = new Date(year, month, 1)
+  const lastDayOfMonth = new Date(year, month + 1, 0)
+  
+  const daysInMonth = lastDayOfMonth.getDate()
+  const startingDayIndex = firstDayOfMonth.getDay()
+  
+  const days = []
+  
+  const prevMonth = new Date(year, month, 0)
+  const prevMonthDays = prevMonth.getDate()
+  for (let i = startingDayIndex - 1; i >= 0; i--) {
     days.push({
-      date,
-      dayOfMonth: date.getDate(),
-      currentMonth: false,
-      isToday: false,
-      events: []
-    });
+      date: new Date(year, month - 1, prevMonthDays - i),
+      dayNumber: prevMonthDays - i,
+      currentMonth: false
+    })
   }
-
-  // Current month days
+  
   for (let i = 1; i <= daysInMonth; i++) {
-    const date = new Date(year, month, i);
     days.push({
-      date,
-      dayOfMonth: i,
-      currentMonth: true,
-      isToday: date.toDateString() === today.toDateString(),
-      events: i % 3 === 0 ? [{}] : i % 7 === 0 ? [{}, {}] : [] // Dummy events for demonstration
-    });
+      date: new Date(year, month, i),
+      dayNumber: i,
+      currentMonth: true
+    })
   }
-
-  // Next month days
-  const remainingDays = 42 - days.length;
+  
+  const remainingDays = 42 - days.length
   for (let i = 1; i <= remainingDays; i++) {
-    const date = new Date(year, month + 1, i);
     days.push({
-      date,
-      dayOfMonth: i,
-      currentMonth: false,
-      isToday: false,
-      events: []
-    });
+      date: new Date(year, month + 1, i),
+      dayNumber: i,
+      currentMonth: false
+    })
   }
-
-  return days;
-});
+  
+  return days
+})
 
 const previousMonth = () => {
-  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() - 1, 1);
-};
+  currentDate.value = new Date(
+    currentDate.value.getFullYear(),
+    currentDate.value.getMonth() - 1,
+    1
+  )
+}
 
 const nextMonth = () => {
-  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() + 1, 1);
-};
+  currentDate.value = new Date(
+    currentDate.value.getFullYear(),
+    currentDate.value.getMonth() + 1,
+    1
+  )
+}
+
+const selectDate = (date) => {
+  selectedDate.value = date
+}
+
+const isSelected = (date) => {
+  if (!selectedDate.value) return false
+  return date.toDateString() === selectedDate.value.toDateString()
+}
+
+const isToday = (date) => {
+  return date.toDateString() === new Date().toDateString()
+}
+
+const hasAppointments = (date) => {
+  return userAppointments.value.some(apt => apt.date.toDateString() === date.toDateString())
+}
+
+const getAppointmentLabel = (date) => {
+  const appointment = userAppointments.value.find(apt => 
+    apt.date.toDateString() === date.toDateString()
+  )
+  return appointment ? appointment.service : ''
+}
+
+const formatTime = (date) => {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).format(date)
+}
+
+const formatDate = (date) => {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  }).format(date)
+}
+
+const getServiceTagColor = (service) => {
+  const colors = {
+    'Nail Care': 'purple',
+    'Facial Treatment': 'pink',
+    'Massage Therapy': 'teal'
+  }
+  return colors[service] || 'purple'
+}
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
 .calendar-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  font-family: 'Poppins', sans-serif;
   min-height: 100vh;
-  background-color: #f4f7fa;
-  padding: 20px;
-  font-family: 'Inter', 'Roboto', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ff 100%);
+}
+
+.calendar-layout {
+  max-width: 1400px;
+  margin: 120px auto 2rem;
+  padding: 0 2rem;
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 2rem;
+  align-items: start;
+  margin-top: 100px;
+}
+
+.appointments-container {
+  background: white;
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
+  margin-top: 30px;
+  margin-left: 20px;
+}
+
+.appointments-title {
+  color: #4F3D7C;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.appointments-subtitle {
+  color: #6B7280;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.appointments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.appointment-card {
+  background: #F8F7FF;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgba(79, 61, 124, 0.08);
+}
+
+.appointment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.service-tag {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.75rem;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.service-tag.purple { background: #8B5CF6; }
+.service-tag.pink { background: #EC4899; }
+.service-tag.teal { background: #14B8A6; }
+
+.appointment-time {
+  color: #4F3D7C;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.appointment-date {
+  color: #1F2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.appointment-duration {
+  color: #6B7280;
+  font-size: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.appointment-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn.reschedule {
+  background: #F3F0FF;
+  color: #4F3D7C;
+}
+
+.action-btn.cancel {
+  background: #FEE2E2;
+  color: #DC2626;
 }
 
 .calendar-container {
-  max-width: 900px;
+  background: white;
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
   width: 100%;
-  background-color: #ffffff;
-  border-radius: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.calendar-container:hover {
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
+  max-width: 850px;
+  margin-top: 30px;
 }
 
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 30px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #ffffff;
+  margin-bottom: 1.5rem;
 }
 
-.calendar-header h2 {
-  font-size: 2rem;
-  font-weight: 700;
+.month-year {
+  text-align: center;
+}
+
+.month {
+  color: #4F3D7C;
+  font-size: 1.5rem;
+  font-weight: 600;
   margin: 0;
-  letter-spacing: -0.5px;
+}
+
+.year {
+  color: #6B7280;
+  font-size: 1rem;
 }
 
 .nav-button {
-  background: rgba(255, 255, 255, 0.2);
+  background: #F3F0FF;
   border: none;
-  color: #ffffff;
-  cursor: pointer;
-  font-size: 1.5rem;
-  padding: 10px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
+  border-radius: 0.75rem;
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #4F3D7C;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.nav-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.icon {
-  width: 24px;
-  height: 24px;
-}
-
-.weekdays {
+.weekdays-header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  background-color: #f8fafc;
-  padding: 15px 0;
   text-align: center;
+  margin-bottom: 0.75rem;
+}
+
+.weekday {
+  color: #6B7280;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #64748b;
-  border-bottom: 1px solid #e2e8f0;
+  text-transform: uppercase;
+  padding: 0.25rem;
 }
 
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  background-color: #e2e8f0;
-  padding: 1px;
+  gap: 0.35rem;
 }
 
 .calendar-day {
   aspect-ratio: 1;
-  background-color: #ffffff;
+  background: white;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(79, 61, 124, 0.08);
+  padding: 0.35rem;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
   align-items: center;
-  padding: 10px;
+  gap: 0.15rem;
+  transition: all 0.2s ease;
   position: relative;
-  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-  cursor: pointer;
-}
-
-.calendar-day:hover {
-  background-color: #f1f5f9;
-  transform: scale(1.05);
-  z-index: 1;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
 .day-number {
-  font-size: 1.1rem;
+  font-size: 0.875rem;
   font-weight: 500;
-  color: #334155;
-  transition: all 0.2s ease;
-}
-
-.calendar-day:hover .day-number {
-  transform: translateY(-2px);
+  color: #1F2937;
 }
 
 .other-month {
-  color: #94a3b8;
+  color: #D1D5DB;
+  background: #FAFAFA;
+}
+
+.other-month .day-number {
+  color: #D1D5DB;
+}
+
+.selected {
+  background: #4F3D7C;
+  color: white;
+  border-color: #4F3D7C;
+}
+
+.selected .day-number {
+  color: white;
 }
 
 .today {
-  background-color: #e0f2fe;
-  font-weight: bold;
-  color: #0ea5e9;
-  border: 2px solid #0ea5e9;
+  border: 2px solid #4F3D7C;
+  font-weight: 600;
 }
 
-.today .day-number {
-  color: #0ea5e9;
-}
-
-.event-indicator {
+.appointment-labels {
+  width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 5px;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: auto;
 }
 
-.event-dot {
-  width: 6px;
-  height: 6px;
-  background-color: #10b981;
-  border-radius: 50%;
-  margin-right: 3px;
+.appointment-label {
+  font-size: 0.6rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: 0.25rem;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  line-height: 1;
+  max-width: 100%;
 }
 
-.event-count {
-  font-size: 0.7rem;
-  color: #64748b;
+@media (max-width: 1200px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+    max-width: 850px;
+  }
+
+  .appointments-container {
+    order: 2;
+  }
+
+  .calendar-container {
+    order: 1;
+  }
 }
 
 @media (max-width: 768px) {
-  .calendar-container {
-    font-size: 0.9rem;
+  .calendar-layout {
+    padding: 0 1rem;
+    margin-top: 100px;
   }
 
-  .calendar-header h2 {
-    font-size: 1.6rem;
+  .calendar-container,
+  .appointments-container {
+    padding: 1rem;
   }
 
-  .weekdays span {
-    font-size: 0.8rem;
-  }
-
-  .day-number {
-    font-size: 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .calendar-header {
-    padding: 20px;
-  }
-
-  .calendar-header h2 {
-    font-size: 1.4rem;
-  }
-
-  .nav-button {
-    padding: 8px;
-  }
-
-  .icon {
-    width: 20px;
-    height: 20px;
+  .month {
+    font-size: 1.25rem;
   }
 
   .calendar-day {
-    padding: 5px;
+    padding: 0.25rem;
   }
 
   .day-number {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .calendar-layout {
+    margin-top: 80px;
+  }
+
+  .calendar-container,
+  .appointments-container {
+    padding: 0.75rem;
+  }
+
+  .month {
+    font-size: 1.125rem;
+  }
+
+  .weekday {
+    font-size: 0.7rem;
+  }
+
+  .calendar-day {
+    padding: 0.2rem;
+  }
+
+  .day-number {
+    font-size: 0.7rem;
+  }
+
+  .appointment-label {
+    font-size: 0.55rem;
+    padding: 0.1rem 0.2rem;
   }
 }
 </style>

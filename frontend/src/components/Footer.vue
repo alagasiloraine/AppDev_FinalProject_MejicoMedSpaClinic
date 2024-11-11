@@ -52,7 +52,7 @@
           <ul class="footer-contact">
             <li class="contact-item">
               <Mail class="icon-small" />
-              mejicomedicalspa@gmail.com
+              mejicomdclinic@gmail.com
             </li>
             <li class="contact-item">
               <Phone class="icon-small" />
