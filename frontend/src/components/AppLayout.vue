@@ -50,8 +50,8 @@ const routes = [
     name: 'Appointment Management',
     icon: CalendarIcon,
     submenu: [
-      { path: '/admin/appointmentlists', name: 'Schedule' },
-      { path: '/admin/calendar', name: 'Calendar View' },
+      { path: '/admin/appointmentlists', name: 'Approved Appointments' },
+      { path: '/admin/calendar', name: 'View Calendar' },
       { path: '/admin/appointments', name: 'Schedule Management' },
     ]
   },

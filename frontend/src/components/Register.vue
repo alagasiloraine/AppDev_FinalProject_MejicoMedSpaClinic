@@ -133,15 +133,17 @@
             <router-link to="/login" class="signin-link">Login</router-link>
           </p>
         </div>
+      </div>
 
-        <!-- Pop-up Notification -->
-        <transition name="fade">
-          <div v-if="showPopup" class="popup-message" :class="{ error: isError }">
-            {{ popupMessage }}
-          </div>
-        </transition>
+      <div class="footer">
+        <p>© 2023 Mejico Medical MD Spa Clinic. All rights reserved.</p>
       </div>
     </div>
+    <transition name="fade">
+      <div v-if="showPopup" class="popup-message" :class="{ error: isError }">
+        {{ popupMessage }}
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -200,7 +202,11 @@ const handleRegister = async () => {
 };
 
 const goToLandingPage = () => {
-  router.push('/');
+  router.push('/').catch(err => {
+    if (err.name !== 'NavigationDuplicated') {
+      console.error('Navigation error:', err);
+    }
+  });
 };
 </script>
 
@@ -216,6 +222,7 @@ const goToLandingPage = () => {
   padding: 24px;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .register-container::before {
@@ -254,7 +261,6 @@ const goToLandingPage = () => {
   color: #ffffff;
 }
 
-/* Heartbeat animation */
 @keyframes heartbeat {
   0%, 100% {
     transform: scale(1);
@@ -275,13 +281,16 @@ const goToLandingPage = () => {
 }
 
 .register-box {
-  max-width: 700px; /* Increased width */
+  max-width: 700px;
   width: 100%;
   background: rgba(255, 255, 255, 0.9);
   border-radius: 20px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   backdrop-filter: blur(10px);
+  margin: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .logo-header {
@@ -308,10 +317,11 @@ const goToLandingPage = () => {
 }
 
 .logo-image {
-  max-height: 115px;
-  max-width: 100%;
+  height: 90px;
+  width: 90px;
   object-fit: contain;
-  margin-top: 5px;
+  transform: scale(1.2);
+  transition: transform 0.3s ease;
 }
 
 .register-content {
@@ -372,13 +382,13 @@ const goToLandingPage = () => {
   padding: 12px 40px;
   border: 1px solid #d1d1d1;
   border-radius: 8px;
-  font-size: 14px; /* Adjust input font size */
+  font-size: 14px;
   transition: border-color 0.3s;
 }
 
 .form-input::placeholder {
   color: #a0a0a0;
-  font-size: 14px; /* Adjust placeholder font size */
+  font-size: 14px;
 }
 
 .form-input:focus {
@@ -422,13 +432,12 @@ const goToLandingPage = () => {
   color: #008a8a;
 }
 
-/* Pop-up Notification */
 .popup-message {
   position: fixed;
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #4caf50; /* Default background color */
+  background-color: #4caf50;
   color: #fff;
   padding: 12px 24px;
   border-radius: 8px;
@@ -438,39 +447,26 @@ const goToLandingPage = () => {
 }
 
 .popup-message.error {
-  background-color: #f44336; /* Error background color */
-}
-.verification-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
+  background-color: #f44336;
 }
 
-.verification-modal h2 {
-  margin-bottom: 10px;
+.footer {
+  padding: 16px;
+  background: #f8f8f8;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+  font-size: 12px;
+  color: #909090;
+  border-bottom-left-radius: 20px; 
+  border-bottom-right-radius: 20px;
 }
 
-.verification-modal p {
-  margin-bottom: 20px;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s;
 }
 
-.verification-modal button {
-  margin-right: 10px;
-  padding: 8px 16px;
-  background-color: #4a399c;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.verification-modal button:hover {
-  background-color: #372a75;
+.fade-enter, .fade-leave-to {
+  opacity: 0;
 }
 </style>

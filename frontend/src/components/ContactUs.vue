@@ -14,7 +14,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="main-content">
+    <div class="contact-main-content">
       <div class="content-wrapper">
         <div class="contact-card">
           <!-- Get in touch Section -->
@@ -312,26 +312,36 @@ const submitForm = async () => {
   margin-top: -5px;
 }
 
-.main-content {
+.contact-main-content {
   background-color: white;
   padding: 4rem 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .content-wrapper {
-  max-width: 90%;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 2rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .contact-card {
   background-color: white;
   border-radius: 1rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  margin-top: -8rem;
+  margin: -8rem auto 0;
   position: relative;
   z-index: 20;
   display: flex;
   overflow: hidden;
+  width: 100%;
+  max-width: 1200px;
 }
 
 .get-in-touch {
@@ -508,15 +518,18 @@ button:disabled {
 }
 
 .map-container {
-  margin-top: 5rem;
+  margin: 5rem auto 0;
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.226);
+  width: 100%;
+  max-width: 1200px;
 }
 
 .map-section {
-  height: 400px;
+  height: 450px;
   width: 100%;
+  position: relative;
 }
 
 .notification {
@@ -631,18 +644,41 @@ button:disabled {
   }
 }
 
+@media (max-width: 1200px) {
+  .content-wrapper {
+    max-width: 95%;
+    padding: 0 2rem;
+  }
+}
+
 @media (max-width: 768px) {
+  .content-wrapper {
+    max-width: 100%;
+    padding: 0 1rem;
+  }
+  
   .contact-card {
     flex-direction: column;
+    margin-top: -6rem;
+    margin-left: 1rem;
+    margin-right: 1rem;
   }
-
+  
   .get-in-touch,
   .contact-form {
     width: 100%;
   }
-
+  
   .form-row {
     grid-template-columns: 1fr;
+  }
+  
+  .contact-card {
+    margin: -6rem 1rem 0;
+  }
+  
+  .map-container {
+    margin: 3rem 1rem;
   }
 }
 </style>

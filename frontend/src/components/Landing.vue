@@ -33,70 +33,134 @@
 
     <FooterComponent />
 
-    <!-- Modal for Login/Registration Reminder -->
-    <div v-if="showModal" class="modal-overlay">
-      <div class="modal-content">
-        <p>You need to log in or register before booking an appointment.</p>
-        <button @click="closeModal" class="close-button">Close</button>
+    <div v-if="showModal" class="modal-overlay" @click="closeModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-icon">
+          <UserCircle class="icon" />
+        </div>
+        <h3 class="modal-title">Authentication Required</h3>
+        <p class="modal-message">You need to log in or register before booking an appointment.</p>
+        <div class="modal-actions">
+          <router-link to="/login" class="modal-button login">
+            <LogIn class="button-icon" />
+            Login
+          </router-link>
+          <router-link to="/register" class="modal-button register">
+            <UserPlus class="button-icon" />
+            Register
+          </router-link>
+          <button @click="closeModal" class="modal-button close">
+            <X class="button-icon" />
+            Close
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-import { ref } from 'vue';
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import FooterComponent from './Footer.vue';
 import Carousel from './Carousel.vue';
 import LandingAbout from './LandingAbout.vue';
+import { UserCircle, LogIn, UserPlus, X } from 'lucide-vue-next';
 
-export default {
-  name: 'LandingPage',
-  components: {
-    FooterComponent,
-    Carousel,
-    LandingAbout,
-  },
-  setup() {
-    const showModal = ref(false);
+const showModal = ref(false);
+const router = useRouter();
 
-    const handleAppointmentClick = () => {
-      showModal.value = true;
-    };
-
-    const closeModal = () => {
-      showModal.value = false;
-    };
-
-    return { showModal, handleAppointmentClick, closeModal };
-  }
+const handleAppointmentClick = () => {
+  showModal.value = true;
 };
+
+const closeModal = () => {
+  showModal.value = false;
+};
+
+onMounted(() => {
+  // Clear any stored paths when landing on this page
+  sessionStorage.removeItem('currentPath');
+});
 </script>
 
 <style scoped>
+:root {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(133, 115, 223, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #8573df;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6658ac;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #8573df rgba(133, 115, 223, 0.1);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  width: 100%;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
 
 .landing-container {
   font-family: 'Poppins', sans-serif;
   color: #ffffff;
-  width: 1315px;
+  width: 100%;
+  min-height: 100vh;
   margin: 0;
-  margin-left: -10px;
   padding: 0;
   background-color: #f9f9f9;
+  overflow-x: hidden;
+  position: relative;
+  left: 0;
+  right: 0;
 }
 
 header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: rgba(255, 255, 255);
-  padding: 15px 30px;
+  background-color: rgba(255, 255, 255, 0.98);
+  padding: 1rem 5%;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.305);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .logo {
@@ -105,48 +169,40 @@ header {
 }
 
 .logo img {
-  height: 70px;
+  height: 3.5rem;
   transition: transform 0.3s ease;
 }
 
-.logo img:hover {
-  transform: scale(1.05);
-}
-
 .clinic-name {
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #3d2f81;
-  margin-left: 15px;
+  margin-left: 1rem;
   font-weight: 600;
-}
-
-nav {
-  display: flex;
-  align-items: center;
 }
 
 .nav-btn {
   background-color: #4a3b94;
   color: #fff;
-  padding: 10px 20px;
-  margin-left: 10px;
+  padding: 0.75rem 1.5rem;
+  margin-left: 1rem;
   border-radius: 10px;
   text-decoration: none;
-  transition: background-color 0.3s ease, transform 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .nav-btn:hover {
   background-color: #31256a;
-  transform: scale(1.05);
+  transform: translateY(-2px);
 }
 
 main {
-  padding-top: 100px;
+  padding-top: 5rem;
 }
 
 .welcome-section {
   position: relative;
-  height: calc(100vh - 100px);
+  width: 100%;
+  min-height: calc(100vh - 5rem);
   background-image: url('/src/images/MEJICO-bg-2.png');
   background-size: cover;
   background-position: center;
@@ -154,17 +210,17 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  padding: 0;
+  left: 0;
+  right: 0;
 }
 
 .blur-background {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  backdrop-filter: blur(10px);
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 0;
+  inset: 0;
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .welcome-content {
@@ -173,242 +229,258 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 30px;
-  border-radius: 5px;
-  width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
+  width: 90%;
   margin: 0 auto;
-  margin-left: 10px;
+  padding: 2rem;
+  gap: 4rem;
+}
+
+.welcome-text {
+  flex: 1;
+  max-width: 600px;
+}
+
+.welcome-text h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.welcome-text h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+}
+
+.welcome-text h1 span {
+  color: #8573df;
+}
+
+.welcome-text p {
+  font-size: clamp(1rem, 2vw, 1.125rem);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  opacity: 0.9;
 }
 
 .welcome-logo {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: center;
-}
-
-/* Subtle Forward-Backward Animation */
-@keyframes slowPulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
+  max-width: 600px;
 }
 
 .welcome-logo img {
-  max-width: 100%;
+  width: 100%;
   height: auto;
+  object-fit: contain;
   animation: slowPulse 4s ease-in-out infinite;
-}
-
-.welcome-text {
-  flex: 1;
-  padding-right: 40px;
-  padding-left: 50px;
-}
-
-/* .welcome-text h3 {
-  font-size: 24px;
-  color: #fff;
-  font-weight: 500;
-  margin-bottom: 15px;
-} */
-
-.welcome-text h1 {
-  margin-top: -10px;
-  font-size: 36px;
-  color: #fff;
-  font-weight: 700;
-  margin-bottom: 20px;
-}
-
-.welcome-text h1 span {
-  font-weight: 900;
-  color: #8573df;
-}
-
-.welcome-text p {
-  font-size: 16px;
-  color: #fff;
-  margin: 15px 0;
-}
-
-.welcome-section h1 {
-  font-size: 36px;
-  color: #fff;
-  font-weight: 700;
-  margin-bottom: 10px;
-}
-
-.tagline {
-  font-size: 20px;
-  color: #4A90E2;
-  margin-bottom: 20px;
-}
-
-.welcome-section p {
-  font-size: 16px;
-  color: #fff;
-  margin: 10px 0;
-}
-
-.features-list {
-  list-style-type: none;
-  padding-left: 0;
-  margin-top: 30px;
-}
-
-.features-list li {
-  font-size: 16px;
-  color: #fff;
-  margin: 15px 0;
 }
 
 .cta-button {
   background-color: #8573df;
   color: white;
   border: none;
-  padding: 15px 30px;
-  font-size: 18px;
-  border-radius: 30px;
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  border-radius: 2rem;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.3s ease;
-  margin-top: 30px;
+  transition: all 0.3s ease;
 }
 
 .cta-button:hover {
   background-color: #6658ac;
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(133, 115, 223, 0.3);
 }
 
-.services-section {
-  padding: 100px 50px;
-  background-color: #f1f1f1;
-  text-align: center;
-}
-
-.services-section h2 {
-  font-size: 36px;
-  color: #2C3E50;
-  margin-bottom: 50px;
-}
-
-.services-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 30px;
-  max-width: 1200px;
-  /* Limit the width of the grid */
-  margin: 0 auto;
-  /* Center the grid */
-}
-
-.service-card {
-  background: #fff;
-  padding: 30px;
-  border-radius: 15px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.service-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
-}
-
-.service-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-}
-
-.service-card h3 {
-  font-size: 24px;
-  color: #4A90E2;
-  margin-bottom: 15px;
-}
-
-.service-card p {
-  font-size: 16px;
-  color: #666;
-}
-
-@media (max-width: 768px) {
-  header {
-    flex-direction: column;
-    padding: 15px;
-  }
-
-  nav {
-    margin-top: 15px;
-  }
-
-  .welcome-content {
-    flex-direction: column;
-    text-align: center;
-    padding: 30px;
-  }
-
-  .welcome-text {
-    padding-right: 0;
-    padding-left: 0;
-    margin-bottom: 30px;
-  }
-
-  .welcome-section h1 {
-    font-size: 28px;
-  }
-
-  .tagline {
-    font-size: 18px;
-  }
-
-  .services-section {
-    padding: 50px 20px;
-  }
-}
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
+  animation: fadeIn 0.3s ease;
 }
+
 
 .modal-content {
-  background: #9ab4c3;
-  padding: 30px;
-  border-radius: 10px;
+  background: linear-gradient(145deg, #ffffff, #f5f5f5);
+  color: #333;
+  padding: 2.5rem;
+  border-radius: 1.5rem;
   text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  max-width: 400px;
-  width: 80%;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  transform: translateY(0);
+  animation: slideUp 0.3s ease;
 }
-
-
 
 .close-button {
-  background: transparent;
-  color: #333;
-  border: 1px solid #333;
-  padding: 5px 10px;
-  border-radius: 5px;
-  margin-top: 15px;
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: #4a3b94;
+  color: white;
+  border-radius: 0.5rem;
   cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.close-button:hover {
-  background: #f1f1f1;
+.modal-icon {
+  background: linear-gradient(135deg, #8573df, #6658ac);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.modal-icon .icon {
+  width: 40px;
+  height: 40px;
+  color: white;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #2d2d2d;
+}
+
+.modal-message {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modal-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+.modal-button .button-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.modal-button.login {
+  background: #8573df;
+  color: white;
+}
+
+.modal-button.login:hover {
+  background: #6658ac;
+  transform: translateY(-2px);
+}
+
+.modal-button.register {
+  background: #f0edff;
+  color: #8573df;
+}
+
+.modal-button.register:hover {
+  background: #e5e0ff;
+  transform: translateY(-2px);
+}
+
+.modal-button.close {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.modal-button.close:hover {
+  background: #eeeeee;
+  color: #444;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .welcome-content {
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  header {
+    padding: 1rem;
+  }
+  
+  .clinic-name {
+    font-size: 1.25rem;
+  }
+  
+  .welcome-content {
+    flex-direction: column;
+    text-align: center;
+    padding: 1rem;
+  }
+
+  .welcome-text {
+    padding: 0;
+  }
+
+  .welcome-logo {
+    margin-top: 2rem;
+  }
+
+  .nav-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo img {
+    height: 2.5rem;
+  }
+
+  .clinic-name {
+    font-size: 1rem;
+  }
+
+  .welcome-text h1 {
+    font-size: 1.75rem;
+  }
 }
 </style>

@@ -17,14 +17,10 @@
             <h3 class="appointment-date">{{ formatDate(appointment.date) }}</h3>
             <p class="appointment-duration">Duration: {{ appointment.duration }} min</p>
             <div class="appointment-actions">
-              <button class="action-btn reschedule">
-                <ClockIcon class="h-3.5 w-3.5" />
-                Reschedule
-              </button>
-              <button class="action-btn cancel">
-                <XIcon class="h-3.5 w-3.5" />
-                Cancel
-              </button>
+              <div class="status-badge approved">
+                <CheckCircleIcon class="h-3.5 w-3.5" />
+                Approved
+              </div>
             </div>
           </div>
         </div>
@@ -84,7 +80,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, XIcon } from 'lucide-vue-next'
+import { ChevronLeftIcon, ChevronRightIcon, CheckCircleIcon, ClockIcon, XIcon } from 'lucide-vue-next'
 import Navbar from './Navbar.vue'
 import FooterComponent from './Footer.vue'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
@@ -281,14 +277,13 @@ const getServiceTagColor = (service) => {
 }
 
 .calendar-layout {
-  max-width: 1400px;
-  margin: 120px auto 2rem;
-  padding: 0 2rem;
+  max-width: 1600px; /* Increased from 1400px */
+  margin: 2rem auto;
+  padding: 0 4rem; /* Increased padding for better spacing */
   display: grid;
-  grid-template-columns: 350px 1fr;
-  gap: 2rem;
+  grid-template-columns: 380px 1fr; /* Slightly wider sidebar */
+  gap: 3rem; /* Increased gap between columns */
   align-items: start;
-  margin-top: 100px;
 }
 
 .appointments-container {
@@ -298,10 +293,10 @@ const getServiceTagColor = (service) => {
   box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
   margin-top: 30px;
   margin-left: 20px;
-  height: 855px;
+  height: 965px;
   display: flex;
   flex-direction: column;
-  margin-top: 40px;
+  margin-top: 100px;
 }
 
 .appointments-title {
@@ -417,11 +412,11 @@ const getServiceTagColor = (service) => {
 .calendar-container {
   background: white;
   border-radius: 1.5rem;
-  padding: 1.5rem;
+  padding: 2rem; /* Increased padding */
   box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
   width: 100%;
-  max-width: 850px;
-  margin-top: 40px;
+  max-width: 1000px; /* Increased from 850px */
+  margin: 100px auto 0; /* Added auto horizontal margins */
 }
 
 .calendar-header {
@@ -546,6 +541,36 @@ const getServiceTagColor = (service) => {
   text-align: center;
   line-height: 1;
   max-width: 100%;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-badge.approved {
+  background: #ECFDF5;
+  color: #059669;
+}
+
+@media (max-width: 1400px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+    max-width: 1000px;
+    padding: 0 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .calendar-layout {
+    padding: 0 1rem;
+    margin-top: 2rem;
+  }
 }
 
 @media (max-width: 1200px) {

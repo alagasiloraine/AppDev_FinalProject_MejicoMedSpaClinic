@@ -417,7 +417,6 @@ const showVerificationForm = ref(false)
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPasswordForm = ref(false)
-// const passwordLastChanged = ref(45)
 const showCurrentPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
@@ -427,19 +426,7 @@ const showNotification = ref(false)
 const notificationMessage = ref('')
 
 // Security changes state
-// First, ensure securityChanges is properly initialized
 const securityChanges = ref([])
-
-// // Add function to add new change to history
-// const addChangeToHistory = async (change) => {
-//   const location = await getCurrentLocation()
-//   securityChanges.value.unshift({
-//     id: Date.now(),
-//     ...change,
-//     timestamp: new Date(),
-//     location
-//   })
-// }
 
 // Fetch user data on mount
 onMounted(async () => {
@@ -556,7 +543,6 @@ const handleEmailUpdate = async () => {
   }
 }
 
-// Also update the verifyEmailChange function to include proper timestamp
 const verifyEmailChange = async () => {
   try {
     const userDoc = await getDoc(doc(database, 'users', auth.currentUser.uid))
@@ -587,7 +573,7 @@ const verifyEmailChange = async () => {
       title: 'Email Address Updated',
       description: `Email address changed to ${currentEmail.value}`,
       status: 'success',
-      timestamp: new Date().getTime() // Add timestamp here
+      timestamp: new Date().getTime()
     })
   } catch (error) {
     showPopupNotification('Error verifying email change: ' + error.message)
@@ -598,7 +584,7 @@ const verifyEmailChange = async () => {
       title: 'Email Verification Failed',
       description: 'Unsuccessful attempt to verify email change',
       status: 'failed',
-      timestamp: new Date().getTime() // Add timestamp here
+      timestamp: new Date().getTime()
     })
   }
 }
@@ -792,6 +778,7 @@ const addChangeToHistory = async (change) => {
     })
   }
 }
+
 // Helper function to get current location
 const getCurrentLocation = async () => {
   try {
@@ -819,7 +806,7 @@ const getCurrentLocation = async () => {
   padding: 2rem;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   min-height: calc(100vh - 200px);
   margin-top: 90px;
 }
@@ -830,7 +817,7 @@ const getCurrentLocation = async () => {
   border-radius: 2rem;
   padding: 3rem;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   box-shadow: 
     0 20px 25px -5px rgba(0, 0, 0, 0.1),
     0 10px 10px -5px rgba(0, 0, 0, 0.04),
@@ -1363,6 +1350,27 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+.timeline-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.timeline-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.timeline-container::-webkit-scrollbar-thumb {
+  background: #8b5cf6;
+  border-radius: 4px;
+}
+
+.timeline-container::-webkit-scrollbar-thumb:hover {
+  background: #7c3aed;
 }
 
 .timeline-item {

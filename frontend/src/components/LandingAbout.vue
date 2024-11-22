@@ -182,7 +182,7 @@ const content = ref([
 }
 
 .story-text p {
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.6;
   text-align: justify;
   margin-left: 15px;
@@ -194,7 +194,7 @@ const content = ref([
   padding: 20px;
   border-radius: 8px;
   margin: 5px 15px 20px 0;
-  width: 705px;
+  width: 805px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
   margin-top: 22px;
   margin-left: -50px;
@@ -219,7 +219,7 @@ const content = ref([
   width: 400px;
   margin-right: 0;
   margin-top: 10px;
-  margin-left: 915px;
+  margin-left: 1120px;
 }
 
 .founder-header h2 {
@@ -229,7 +229,7 @@ const content = ref([
 }
 
 .founder-text p {
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.6;
   text-align: justify;
   color: #000000;
@@ -241,7 +241,7 @@ const content = ref([
   padding: 20px;
   border-radius: 8px;
   margin: 5px 15px 20px 0;
-  width: 705px;
+  width: 805px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
   margin-top: 22px;
   margin-right: -45px;

@@ -142,7 +142,11 @@ const handleResetPassword = async () => {
 };
 
 const goToLandingPage = () => {
-  router.push('/landing');
+  router.push('/').catch(err => {
+    if (err.name !== 'NavigationDuplicated') {
+      console.error('Navigation error:', err);
+    }
+  });
 };
 </script>
 
@@ -250,10 +254,11 @@ const goToLandingPage = () => {
 }
 
 .logo-image {
-  max-height: 115px;
-  max-width: 100%;
+  height: 90px; /* Increased fixed height */
+  width: 90px; /* Added width to maintain aspect ratio */
   object-fit: contain;
-  margin-top: 5px;
+  transform: scale(1.2); /* Added scale transform to make logo appear bigger */
+  transition: transform 0.3s ease; /* Smooth transition for any hover effects */
 }
 
 .login-content {

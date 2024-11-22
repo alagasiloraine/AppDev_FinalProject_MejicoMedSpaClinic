@@ -8,17 +8,17 @@
       <router-link to="/home" class="nav-item" active-class="active">Home</router-link>
       <router-link to="/about" class="nav-item" active-class="active">About</router-link>
       <div class="nav-item dropdown">
-      <button
-        class="dropdown-toggle"
-        @click="toggleDropdown"
-        :class="{ active: isServicesActive }"
-      >
-        Services
-        <ChevronDown
-          :class="{ 'rotate-180': isDropdownOpen }"
-          class="inline-block w-4 h-4 ml-1 transition-transform duration-200"
-        />
-      </button>
+        <button
+          class="dropdown-toggle"
+          @click="toggleDropdown"
+          :class="{ active: isServicesActive }"
+        >
+          Services
+          <ChevronDown
+            :class="{ 'rotate-180': isDropdownOpen }"
+            class="inline-block w-4 h-4 ml-1 transition-transform duration-200"
+          />
+        </button>
         <transition
           enter-active-class="transition ease-out duration-200"
           enter-from-class="opacity-0 translate-y-1"
@@ -28,13 +28,16 @@
           leave-to-class="opacity-0 translate-y-1"
         >
           <div v-if="isDropdownOpen" class="dropdown-menu">
-            <router-link to="/appointment" class="dropdown-item" active-class="active">
+            <router-link to="/clientappointment" class="dropdown-item" active-class="active" @click="closeDropdown">
               <Calendar size="16" class="icon" /> Appointments
             </router-link>
-            <router-link to="/calendar" class="dropdown-item" active-class="active">
+            <!-- <a @click="navigateTo('/clientappointment')" class="dropdown-item">
+              <Calendar size="16" class="icon" /> Appointments
+            </a> -->
+            <router-link to="/calendar" class="dropdown-item" active-class="active" @click="closeDropdown">
               <ClipboardList size="16" class="icon" /> View Calendar
             </router-link>
-            <router-link to="/offers" class="dropdown-item" active-class="active">
+            <router-link to="/clientoffers" class="dropdown-item" active-class="active" @click="closeDropdown">
               <Tag size="16" class="icon" /> Offers
             </router-link>
           </div>  
@@ -42,9 +45,8 @@
       </div>
       <router-link to="/contact" class="nav-item" active-class="active">Contact Us</router-link>
       
-      <!-- Enhanced User Profile Dropdown -->
-     <!-- Enhanced User Profile Dropdown -->
-     <div class="nav-item user-profile-dropdown" @click="toggleUserDropdown" v-click-outside="closeUserDropdown">
+      <!-- User Profile Dropdown -->
+      <div class="nav-item user-profile-dropdown" @click="toggleUserDropdown" v-click-outside="closeUserDropdown">
         <div class="profile-trigger">
           <div class="avatar-container">
             <img 
@@ -57,9 +59,8 @@
           </div>
         </div>
         
-        <!-- Enhanced Dropdown Menu -->
+        <!-- User Dropdown Menu -->
         <div v-if="userDropdownOpen" class="user-dropdown-menu">
-          <!-- User Info Section -->
           <div class="user-info">
             <div class="avatar-container large">
               <img 
@@ -76,7 +77,6 @@
             </div>
           </div>
           
-          <!-- Menu Items -->
           <div class="dropdown-items">
             <router-link 
               to="/customizeprofile" 
@@ -107,13 +107,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { database } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { ChevronDown, UserCircle2, UserCog2, Shield, LogOut } from 'lucide-vue-next'
 import { Calendar, ClipboardList, Tag } from 'lucide-vue-next'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 // State
 const isDropdownOpen = ref(false)
@@ -125,11 +125,68 @@ const userData = ref({
   profileImage: ''
 })
 const router = useRouter()
+const route = useRoute()
 const logoutMessage = ref('')
 
 // Computed property to check if "Services" routes are active
 const isServicesActive = computed(() => {
-  return ['/appointment', '/offers'].includes(router.currentRoute.value.path)
+  return ['/clientappointment', '/calendar', '/offers'].includes(route.path)
+})
+
+// Methods
+const toggleDropdown = () => {
+  isDropdownOpen.value = !isDropdownOpen.value
+}
+
+const closeDropdown = () => {
+  isDropdownOpen.value = false
+}
+
+const toggleUserDropdown = () => {
+  userDropdownOpen.value = !userDropdownOpen.value
+}
+
+const closeUserDropdown = () => {
+  userDropdownOpen.value = false
+}
+
+const navigateTo = (path) => {
+  closeDropdown()
+  router.push(path).catch(err => {
+    console.error('Navigation failed:', err)
+    if (err.name !== 'NavigationDuplicated') {
+      throw err
+    }
+  })
+}
+
+const logout = async () => {
+  logoutMessage.value = 'Logging out, please wait...'
+  setTimeout(async () => {
+    const auth = getAuth()
+    try {
+      await auth.signOut()
+      userData.value = {
+        username: '',
+        fullName: '',
+        email: '',
+        profileImage: ''
+      }
+      userDropdownOpen.value = false
+      logoutMessage.value = ''
+      sessionStorage.removeItem('currentPath')
+      await router.push('/')
+    } catch (error) {
+      console.error("Error logging out:", error)
+      logoutMessage.value = ''
+    }
+  }, 2000)
+}
+
+// Watch for route changes
+watch(() => route.fullPath, () => {
+  closeDropdown()
+  closeUserDropdown()
 })
 
 // Click Outside Directive
@@ -147,44 +204,7 @@ const vClickOutside = {
   },
 }
 
-// Methods
-const toggleDropdown = () => {
-  isDropdownOpen.value = !isDropdownOpen.value
-}
-
-const toggleUserDropdown = () => {
-  userDropdownOpen.value = !userDropdownOpen.value
-}
-
-const closeUserDropdown = () => {
-  userDropdownOpen.value = false
-}
-
-const logout = async () => {
-  logoutMessage.value = 'Logging out, please wait...'
-  setTimeout(async () => {
-    const auth = getAuth()
-    try {
-      await auth.signOut()
-      userData.value = {
-        username: '',
-        fullName: '',
-        email: '',
-        profileImage: ''
-      }
-      userDropdownOpen.value = false
-      logoutMessage.value = ''
-
-      // Redirect to the landing page
-      await router.push('/')
-    } catch (error) {
-      console.error("Error logging out:", error)
-      logoutMessage.value = ''
-    }
-  }, 5000) // 5-second delay
-}
-
-// Function to fetch user data from Firestore
+// Fetch user data function
 const fetchUserData = async (userId) => {
   try {
     const userDocRef = doc(database, "users", userId)
@@ -220,7 +240,6 @@ onMounted(() => {
   })
 })
 </script>
-
 
 <style scoped>
 /* Navbar styles */
@@ -261,18 +280,18 @@ nav {
 
 .nav-item {
   color: #333;
-  margin-left: 15px; /* Adjusted from 20px to 15px */
+  margin-left: 15px;
   text-decoration: none;
   font-weight: 500;
   position: relative;
 }
 
-.nav-item:nth-child(4) { /* Assuming Contact Us is the 4th nav-item */
-  margin-left: 5px; /* Smaller margin for Contact Us only */
+.nav-item:nth-child(4) {
+  margin-left: 5px;
 }
 
-.nav-item:nth-child(2) { /* Assuming Contact Us is the 4th nav-item */
-  margin-left: 25px; /* Smaller margin for Contact Us only */
+.nav-item:nth-child(2) {
+  margin-left: 25px;
 }
 
 .username-link {
@@ -365,15 +384,15 @@ nav {
 }
 
 .avatar-container {
-  width: 40px; /* Increased size */
-  height: 40px; /* Increased size */
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   overflow: hidden;
   background-color: #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #6a4fb3; /* Purple border */
+  border: 2px solid #6a4fb3;
 }
 
 .profile-avatar {
@@ -503,5 +522,4 @@ nav {
   z-index: 1000;
   font-weight: bold;
 }
-
 </style>
