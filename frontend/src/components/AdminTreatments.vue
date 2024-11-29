@@ -23,26 +23,33 @@
       </button>
     </div>
 
-    <div class="admintreatment-search-section">
-      <div class="admintreatment-search-container">
-        <div class="admintreatment-search-wrapper">
-          <Search class="admintreatment-search-icon" size="18" />
-          <input 
-            type="text" 
-            v-model="searchQuery" 
-            placeholder="Search treatments..." 
-            class="admintreatment-search-input"
-          />
-        </div>
-      </div>
-      <div class="admintreatment-filter-container">
-        <select v-model="priceFilter" class="admintreatment-price-filter">
-          <option value="">Filter by price</option>
-          <option value="100">₱100</option>
-          <option value="200">₱200</option>
-          <option value="300">₱300</option>
+    <div class="admintreatment-search-controls">
+      <div class="admintreatment-search-wrapper">
+        <Package class="admintreatment-search-icon" />
+        <select v-model="selectedService" class="admintreatment-select">
+          <option value="">Select service</option>
+          <option v-for="service in services" :key="service.id" :value="service.name">
+            {{ service.name }}
+          </option>
         </select>
       </div>
+      <div class="admintreatment-search-wrapper">
+        <Search class="admintreatment-search-icon" />
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="Search by treatment name" 
+          class="admintreatment-search-input"
+        >
+      </div>
+      <button @click="applyFilters" class="admintreatment-btn admintreatment-btn-primary">
+        <Filter class="admintreatment-btn-icon" />
+        Search
+      </button>
+      <button @click="resetFilters" class="admintreatment-btn admintreatment-btn-secondary">
+        <RotateCcw class="admintreatment-btn-icon" />
+        Reset
+      </button>
     </div>
 
     <div class="admintreatment-treatments-table">
@@ -54,8 +61,8 @@
         <div class="admintreatment-actions">Actions</div>
       </div>
       
-      <div v-if="filteredTreatments.length > 0" class="admintreatment-table-body">
-        <div v-for="treatment in filteredTreatments" :key="treatment.id" class="admintreatment-table-row">
+      <div v-if="paginatedTreatments.length > 0" class="admintreatment-table-body">
+        <div v-for="treatment in paginatedTreatments" :key="treatment.id" class="admintreatment-table-row">
           <div class="admintreatment-treatment-name">{{ treatment.name }}</div>
           <div class="admintreatment-description">{{ treatment.description }}</div>
           <div class="admintreatment-price">₱{{ treatment.price.toFixed(2) }}</div>
@@ -90,7 +97,7 @@
     </div>
 
     <div class="admintreatment-pagination">
-      <span>Showing {{ filteredTreatments.length }} of {{ totalTreatments }} treatments</span>
+      <span>Showing {{ paginatedTreatments.length }} of {{ totalTreatments }} treatments</span>
       <div class="admintreatment-pagination-buttons">
         <button 
           @click="prevPage" 
@@ -109,34 +116,83 @@
       </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Enhanced Modal -->
     <div v-if="isModalOpen" class="admintreatment-modal">
+      <div class="admintreatment-modal-overlay" @click="closeModal"></div>
       <div class="admintreatment-modal-content">
-        <h3>{{ editingTreatment ? 'Edit Treatment' : 'Add New Treatment' }}</h3>
+        <div class="admintreatment-modal-header">
+          <h3>{{ editingTreatment ? 'Edit Treatment' : 'Add New Treatment' }}</h3>
+          <button @click="closeModal" class="admintreatment-modal-close">
+            <X size="20" />
+          </button>
+        </div>
         <form @submit.prevent="editingTreatment ? updateTreatment() : addTreatment()" class="admintreatment-treatment-form">
           <div class="admintreatment-form-group">
             <label for="treatmentName">Treatment Name</label>
-            <input v-model="currentTreatment.name" type="text" id="treatmentName" required />
+            <div class="admintreatment-input-wrapper">
+              <input 
+                v-model="currentTreatment.name" 
+                type="text" 
+                id="treatmentName" 
+                required 
+                placeholder="Enter treatment name"
+              />
+              <Clipboard class="admintreatment-input-icon" size="16" />
+            </div>
           </div>
           <div class="admintreatment-form-group">
             <label for="treatmentDescription">Description</label>
-            <textarea v-model="currentTreatment.description" id="treatmentDescription" rows="3" required></textarea>
+            <div class="admintreatment-input-wrapper">
+              <textarea 
+                v-model="currentTreatment.description" 
+                id="treatmentDescription" 
+                rows="3" 
+                required
+                placeholder="Enter treatment description"
+                class="admintreatment-textarea"
+              ></textarea>
+              <FileText class="admintreatment-input-icon" size="16" />
+            </div>
           </div>
           <div class="admintreatment-form-group">
-            <label for="treatmentPrice">Price</label>
-            <input v-model.number="currentTreatment.price" type="number" id="treatmentPrice" step="0.01" min="0" required />
+            <label for="treatmentPrice">Price (₱)</label>
+            <div class="admintreatment-input-wrapper">
+              <input 
+                v-model.number="currentTreatment.price" 
+                type="number" 
+                id="treatmentPrice" 
+                step="0.01" 
+                min="0" 
+                required 
+                placeholder="0.00"
+              />
+              <DollarSign class="admintreatment-input-icon" size="16" />
+            </div>
           </div>
           <div class="admintreatment-form-group">
             <label for="treatmentServices">Select Service</label>
-            <select v-model="currentTreatment.services" id="treatmentServices" required>
-              <option v-for="service in services" :key="service.id" :value="service.id">
-                {{ service.name }}
-              </option>
-            </select>
+            <div class="admintreatment-input-wrapper">
+              <select 
+                v-model="currentTreatment.services" 
+                id="treatmentServices" 
+                required
+                class="admintreatment-select-input"
+              >
+                <option value="" disabled>Choose a service</option>
+                <option v-for="service in services" :key="service.id" :value="service.id">
+                  {{ service.name }}
+                </option>
+              </select>
+              <Package class="admintreatment-input-icon" size="16" />
+            </div>
           </div>
           <div class="admintreatment-modal-actions">
-            <button type="button" @click="closeModal" class="admintreatment-cancel-button">Cancel</button>
+            <button type="button" @click="closeModal" class="admintreatment-cancel-button">
+              <X size="16" />
+              Cancel
+            </button>
             <button type="submit" class="admintreatment-submit-button">
+              <Check size="16" />
               {{ editingTreatment ? 'Update' : 'Add' }} Treatment
             </button>
           </div>
@@ -166,15 +222,17 @@
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle } from 'lucide-vue-next';
+import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle, Filter, Package, FileText, DollarSign, Check, X, Clipboard } from 'lucide-vue-next';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const treatments = ref([]);
 const services = ref([]);
 const currentTreatment = ref({ name: '', description: '', price: 0, services: '' });
 const editingTreatment = ref(null);
 const isModalOpen = ref(false);
 const searchQuery = ref('');
-const priceFilter = ref('');
+const selectedService = ref('');
 const showArchived = ref(false);
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -325,9 +383,9 @@ onMounted(() => {
 const filteredTreatments = computed(() => {
   return treatments.value.filter(treatment => {
     const matchesSearch = treatment.name.toLowerCase().includes(searchQuery.value.toLowerCase());
-    const matchesPrice = !priceFilter.value || treatment.price === parseFloat(priceFilter.value);
+    const matchesService = !selectedService.value || treatment.services === selectedService.value;
     const matchesArchiveStatus = treatment.archived === showArchived.value;
-    return matchesSearch && matchesPrice && matchesArchiveStatus;
+    return matchesSearch && matchesService && matchesArchiveStatus;
   });
 });
 
@@ -356,6 +414,16 @@ const nextPage = () => {
 const getServiceNameById = (serviceId) => {
   const service = services.value.find(s => s.id === serviceId);
   return service ? service.name : '';
+};
+
+const applyFilters = () => {
+  currentPage.value = 1;
+};
+
+const resetFilters = () => {
+  searchQuery.value = '';
+  selectedService.value = '';
+  currentPage.value = 1;
 };
 </script>
 
@@ -422,25 +490,78 @@ const getServiceNameById = (serviceId) => {
   font-weight: 500;
 }
 
-.admintreatment-search-section {
+.admintreatment-search-controls {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
-.admintreatment-search-input, .admintreatment-price-filter {
-  padding: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.admintreatment-search-container {
+.admintreatment-search-wrapper {
+  position: relative;
   flex: 1;
 }
 
-.admintreatment-filter-container {
-  width: 200px;
+.admintreatment-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: #718096;
+}
+
+.admintreatment-select,
+.admintreatment-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #4a5568;
+  background-color: white;
+  transition: all 0.2s;
+}
+
+.admintreatment-select:focus,
+.admintreatment-search-input:focus {
+  outline: none;
+  border-color: #9f7aea;
+  box-shadow: 0 0 0 3px rgba(159, 122, 234, 0.1);
+}
+
+.admintreatment-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+.admintreatment-btn-primary {
+  background: linear-gradient(135deg, #9f7aea, #667eea);
+  color: white;
+}
+
+.admintreatment-btn-secondary {
+  background-color: #edf2f7;
+  color: #4a5568;
+}
+
+.admintreatment-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.admintreatment-btn-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
 }
 
 .admintreatment-treatments-table {
@@ -521,79 +642,6 @@ const getServiceNameById = (serviceId) => {
   overflow-y: auto;
 }
 
-.admintreatment-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.admintreatment-modal-content {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  width: 400px;
-  max-width: 90%;
-}
-
-.admintreatment-modal-content h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 1rem;
-}
-
-.admintreatment-form-group {
-  margin-bottom: 1rem;
-}
-
-.admintreatment-form-group label {
-  display: block;
-  margin-bottom: 0.25rem;
-  color: #374151;
-  font-size: 0.875rem;
-}
-
-.admintreatment-form-group input,
-.admintreatment-form-group textarea,
-.admintreatment-form-group select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.admintreatment-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
-.admintreatment-submit-button, .admintreatment-cancel-button {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.admintreatment-submit-button {
-  background: #8b5cf6;
-  color: white;
-}
-
-.admintreatment-cancel-button {
-  background: #e5e7eb;
-  color: #374151;
-}
-
 .admintreatment-pagination {
   display: flex;
   justify-content: space-between;
@@ -628,23 +676,6 @@ const getServiceNameById = (serviceId) => {
   text-align: center;
   color: #6b7280;
   font-size: 0.875rem;
-}
-
-.admintreatment-search-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.admintreatment-search-icon {
-  position: absolute;
-  left: 12px;
-  color: #6b7280;
-}
-
-.admintreatment-search-input {
-  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
-  width: 300px;
 }
 
 .admintreatment-treatment-name {
@@ -724,5 +755,227 @@ const getServiceNameById = (serviceId) => {
 .fade-leave-to {
   opacity: 0;
   transform: translate(-50%, -60%);
+}
+
+/* Enhanced Modal Styles */
+.admintreatment-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.admintreatment-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.admintreatment-modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 500px;
+  max-width: 95%;
+  position: relative;
+  z-index: 51;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+}
+
+.admintreatment-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+}
+
+.admintreatment-modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.admintreatment-modal-close {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.admintreatment-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.admintreatment-treatment-form {
+  padding: 1.5rem;
+}
+
+.admintreatment-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.admintreatment-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.admintreatment-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.admintreatment-input-wrapper input,
+.admintreatment-input-wrapper textarea,
+.admintreatment-input-wrapper select {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  background: #f9fafb;
+}
+
+.admintreatment-input-wrapper input:focus,
+.admintreatment-input-wrapper textarea:focus,
+.admintreatment-input-wrapper select:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+.admintreatment-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.admintreatment-select-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+.admintreatment-input-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.admintreatment-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.admintreatment-submit-button,
+.admintreatment-cancel-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.admintreatment-input-wrapper textarea {
+  padding-left: 2.5rem;
+}
+
+.admintreatment-input-wrapper textarea + .admintreatment-input-icon {
+  top: 0.95rem;
+  transform: none;
+}
+
+.admintreatment-submit-button {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+  border: none;
+}
+
+.admintreatment-submit-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.2);
+}
+
+.admintreatment-cancel-button {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+}
+
+.admintreatment-cancel-button:hover {
+  background: #e5e7eb;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .admintreatment-search-controls {
+    flex-direction: column;
+  }
+
+  .admintreatment-search-wrapper {
+    width: 100%;
+  }
+
+  .admintreatment-table-header,
+  .admintreatment-table-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admintreatment-description,
+  .admintreatment-services {
+    display: none;
+  }
 }
 </style>

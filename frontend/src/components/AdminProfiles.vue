@@ -52,8 +52,12 @@
         </div>
 
         <div v-if="loading" class="loading-state">
-          <div class="loading-spinner"></div>
-          <p class="loading-text">Loading clients...</p>
+          <div class="spinner-container">
+            <div class="spinner">
+              <div class="spinner-line" v-for="n in 8" :key="n" :style="{ transform: `rotate(${(n-1) * 45}deg)` }"></div>
+            </div>
+          </div>
+          <p class="loading-text">Loading clients profiles...</p>
         </div>
 
         <div v-else-if="filteredClients.length === 0" class="empty-state">
@@ -273,25 +277,41 @@
             <!-- Treatment Tab -->
             <div v-if="activeTab === 'Treatment'" class="tab-pane">
               <h3 class="tab-title">Treatment History</h3>
-              <div v-if="selectedClient.treatments && selectedClient.treatments.length > 0" class="treatment-list">
+              <div v-if="pastAppointments.length > 0" class="treatment-list">
                 <div 
-                  v-for="treatment in selectedClient.treatments" 
-                  :key="treatment.id"
+                  v-for="appointment in pastAppointments" 
+                  :key="appointment.id"
                   class="treatment-item"
                 >
                   <div class="treatment-header">
-                    <h4 class="treatment-name">{{ treatment.name }}</h4>
-                    <span :class="['treatment-status', treatment.status.toLowerCase()]">
-                      {{ treatment.status }}
+                    <h4 class="treatment-name">
+                      {{ Array.isArray(appointment.services) 
+                        ? appointment.services.join(', ') 
+                        : appointment.services }}
+                    </h4>
+                    <span :class="['treatment-status', appointment.status.toLowerCase()]">
+                      {{ appointment.status }}
                     </span>
                   </div>
-                  <p class="treatment-date">Date: {{ formatDate(treatment.date) }}</p>
-                  <p class="treatment-notes">Notes: {{ treatment.notes }}</p>
+                  <div class="treatment-details">
+                    <p class="treatment-date">
+                      <Calendar class="inline-icon" />
+                      Date: {{ formatDate(appointment.date) }}
+                    </p>
+                    <p class="treatment-time">
+                      <Clock class="inline-icon" />
+                      Time: {{ appointment.time }}
+                    </p>
+                    <p class="treatment-price">
+                      <DollarSign class="inline-icon" />
+                      Price: ₱{{ appointment.price }}
+                    </p>
+                  </div>
                 </div>
               </div>
               <div v-else class="empty-treatment-state">
                 <ClipboardX class="empty-treatment-icon" />
-                <p class="empty-treatment-text">No treatment history available</p>
+                <p class="empty-treatment-text">No past treatment history found</p>
               </div>
             </div>
           </div>
@@ -308,7 +328,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { Search, ChevronDown, Mail, Phone, MapPin, Clock, User, Home, Stethoscope, Clipboard, UserCircle, Calendar, ClipboardX } from 'lucide-vue-next';
+import { Search, ChevronDown, Mail, Phone, MapPin, Clock, User, Home, Stethoscope, Clipboard, UserCircle, Calendar, ClipboardX, DollarSign } from 'lucide-vue-next';
 import { database } from '../firebase';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 
@@ -320,6 +340,7 @@ const searchQuery = ref('');
 const statusFilter = ref('');
 const dateFilter = ref('');
 const activeTab = ref('Personal');
+const pastAppointments = ref([]);
 
 const fetchClients = async () => {
   loading.value = true;
@@ -392,6 +413,20 @@ const formatDate = (date) => {
       day: 'numeric'
     });
   }
+  if (date instanceof Date) {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+  if (typeof date === 'string') {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
   return 'N/A';
 };
 
@@ -414,9 +449,60 @@ const getInitials = (firstName, lastName) => {
   return `${first}${last}`;
 };
 
-const viewProfile = (client) => {
+const fetchPastAppointments = async (userEmail) => {
+  try {
+    const appointmentsRef = collection(database, 'appointments');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day
+
+    const q = query(
+      appointmentsRef,
+      where('userEmail', '==', userEmail)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const allAppointments = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      const appointmentDate = new Date(data.date);
+      appointmentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
+      
+      // Only include appointments that are in the past
+      if (appointmentDate < today) {
+        return {
+          id: doc.id,
+          date: data.date,
+          time: data.time,
+          services: Array.isArray(data.services) 
+            ? data.services 
+            : typeof data.services === 'string'
+            ? [data.services]
+            : [],
+          status: data.status || 'completed',
+          price: data.price || 0
+        };
+      }
+      return null;
+    }).filter(Boolean); // Remove null entries
+
+    // Sort past appointments by date in descending order
+    pastAppointments.value = allAppointments.sort((a, b) => {
+      const dateA = new Date(a.date + 'T' + a.time);
+      const dateB = new Date(b.date + 'T' + b.time);
+      return dateB - dateA;
+    });
+
+  } catch (error) {
+    console.error('Error fetching past appointments:', error);
+    pastAppointments.value = [];
+  }
+};
+
+const viewProfile = async (client) => {
   selectedClient.value = client;
   activeTab.value = 'Personal';
+  if (client.email) {
+    await fetchPastAppointments(client.email);
+  }
 };
 
 const calculateAge = (birthDate) => {
@@ -441,9 +527,8 @@ onMounted(() => {
 
 /* Base Styles */
 .admin-content {
-  max-height: 650px;
-  overflow-y: auto;
-  padding: 0.25rem;
+  height: 650px;
+  overflow: hidden;
   background-color: #ffffff;
   font-family: 'Poppins', sans-serif;
 }
@@ -451,9 +536,20 @@ onMounted(() => {
 .content-wrapper {
   max-width: 1400px;
   margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header Styles */
+.header {
+  padding: 1rem 0;
+  background-color: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
 .header-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -471,8 +567,13 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 1.5rem 0;
+  padding: 1rem 0;
   gap: 1rem;
+  background-color: #ffffff;
+  position: sticky;
+  top: 70px; /* Adjust based on your header height */
+  z-index: 10;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .search-container {
@@ -558,15 +659,17 @@ onMounted(() => {
 .clients-container {
   flex-grow: 1;
   overflow-y: auto;
-  margin-right: -0.75rem;
   padding-right: 0.75rem;
+  height: calc(100vh - 180px); /* Adjust this value based on your header and filters height */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 34, 121, 0.725) transparent;
 }
 
 .client-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.25rem;
-  margin-top: 1.5rem;
+  padding-top: 1rem;
 }
 
 .client-card {
@@ -888,6 +991,8 @@ onMounted(() => {
   padding: 1.5rem 0;
   height: calc(100% - 3.5rem);
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 34, 121, 0.725) transparent;
 }
 
 .tab-title {
@@ -983,29 +1088,65 @@ onMounted(() => {
 }
 
 .treatment-date,
-.treatment-notes {
+.treatment-notes,
+.treatment-price,
+.treatment-time {
   font-size: 0.688rem;
   color: #64748b;
   margin-top: 0.375rem;
 }
 
-/* Scrollbar Styles */
+.treatment-status.approved {
+  background-color: #f0fdf4;
+  color: #166534;
+}
+
+.treatment-status.cancelled {
+  background-color: #fef2f2;
+  color: #991b1b;
+}
+
+.treatment-status.pending {
+  background-color: #fff7ed;
+  color: #9a3412;
+}
+
+/* Scrollbar styles for clients-container */
+.clients-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.clients-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.clients-container::-webkit-scrollbar-thumb {
+  background-color: rgba(109, 40, 217, 0.5);
+  border-radius: 3px;
+  transition: background-color 0.3s ease;
+}
+
+.clients-container:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(109, 40, 217, 0.8);
+}
+
+/* Update modal tab content scrollbar styles */
 .modal-tab-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .modal-tab-content::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 3px;
+  background: transparent;
 }
 
 .modal-tab-content::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background-color: rgba(109, 40, 217, 0.5);
   border-radius: 3px;
+  transition: background-color 0.3s ease;
 }
 
-.modal-tab-content::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.modal-tab-content:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(109, 40, 217, 0.8);
 }
 
 /* Animations */
@@ -1053,5 +1194,80 @@ onMounted(() => {
   color: #64748b;
   font-size: 0.875rem;
   font-weight: 500;
+}
+
+/* Updated loading state styles */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  gap: 1rem;
+}
+
+.spinner-container {
+  width: 40px;
+  height: 40px;
+  position: relative;
+}
+
+.spinner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  animation: spin 1s linear infinite;
+}
+
+.spinner-line {
+  position: absolute;
+  width: 2px;
+  height: 8px;
+  background: #7c3aed;
+  border-radius: 1px;
+  left: 50%;
+  top: 0;
+  transform-origin: 50% 20px;
+}
+
+.loading-text {
+  color: #7c3aed;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* New styles for treatment details */
+.treatment-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.inline-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+  color: #64748b;
+}
+
+.treatment-item {
+  background-color: white;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.treatment-item:hover {
+  border-color: #6d28d9;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 </style>

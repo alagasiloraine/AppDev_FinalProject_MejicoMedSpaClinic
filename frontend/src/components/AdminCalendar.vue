@@ -5,18 +5,14 @@
       
       <div class="admincalendar-header">
         <button class="admincalendar-nav-button" @click="previousMonth">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="nav-icon">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeftIcon class="nav-icon" />
         </button>
         <div class="admincalendar-month-year">
           <h2 class="admincalendar-month">{{ currentMonthName }}</h2>
           <span class="admincalendar-year">{{ currentYear }}</span>
         </div>
         <button class="admincalendar-nav-button" @click="nextMonth">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="nav-icon">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRightIcon class="nav-icon" />
         </button>
       </div>
 
@@ -40,7 +36,7 @@
           <div class="admincalendar-day-header">
             <span class="admincalendar-day-number">{{ day.dayNumber }}</span>
             <span v-if="getAppointmentsForDate(day.date).length > 0" class="admincalendar-appointment-count">
-              x{{ getAppointmentsForDate(day.date).length }}
+              {{ getAppointmentsForDate(day.date).length }}
             </span>
           </div>
           <div class="admincalendar-appointment-services custom-scrollbar">
@@ -61,36 +57,51 @@
       </div>
     </div>
 
-    <!-- Appointment Details Modal -->
+    <!-- Enhanced Appointment Details Modal -->
     <Teleport to="body">
-      <div v-if="selectedDate" class="admincalendar-modal-overlay" @click="closeModal">
-        <div class="admincalendar-modal" @click.stop>
-          <div class="admincalendar-modal-content">
-            <h3 class="admincalendar-modal-title">Appointments for {{ formatDate(selectedDate) }}</h3>
-            
+      <div v-if="selectedDate" class="modal-overlay" @click="closeModal">
+        <div class="modal" @click.stop>
+          <div class="modal-header">
+            <div class="modal-title">
+              <CalendarIcon class="icon" />
+              <h3>Appointments for {{ formatDate(selectedDate) }}</h3>
+            </div>
+            <button class="close-button" @click="closeModal" aria-label="Close modal">
+              <XIcon />
+            </button>
+          </div>
+
+          <div class="modal-content custom-scrollbar">
             <!-- No appointments message -->
-            <div v-if="selectedDateAppointments.length === 0" class="no-appointments">
-              No appointments for this date.
+            <div v-if="selectedDateAppointments.length === 0" class="empty-state">
+              <CalendarXIcon class="empty-icon" />
+              <p>No appointments scheduled for this date</p>
             </div>
 
-            <!-- Appointments list -->
-            <div v-else class="appointments-list custom-scrollbar">
+            <!-- Enhanced Appointments list -->
+            <div v-else class="appointments-list">
               <div 
                 v-for="appointment in selectedDateAppointments" 
                 :key="appointment.id"
-                class="appointment-item"
+                class="appointment-card"
               >
                 <div class="appointment-header">
-                  <div class="appointment-time">{{ formatTime(appointment.time) }}</div>
-                  <div :class="['appointment-status', appointment.status]">
+                  <div class="time-badge">
+                    <ClockIcon class="time-icon" />
+                    {{ formatTime(appointment.time) }}
+                  </div>
+                  <div :class="['status-badge', appointment.status]">
                     {{ appointment.status }}
                   </div>
                 </div>
 
-                <div class="appointment-details">
-                  <div class="detail-row">
-                    <span class="detail-label">Services:</span>
-                    <div class="services-list">
+                <div class="appointment-body">
+                  <div class="detail-group">
+                    <label>
+                      <ScissorsIcon class="detail-icon" />
+                      Services
+                    </label>
+                    <div class="services">
                       <span 
                         v-for="(service, index) in (appointment.services || [])" 
                         :key="index"
@@ -101,20 +112,30 @@
                     </div>
                   </div>
 
-                  <div class="detail-row">
-                    <span class="detail-label">Email:</span>
-                    <span class="detail-value">{{ appointment.userEmail }}</span>
+                  <div class="detail-group">
+                    <label>
+                      <MailIcon class="detail-icon" />
+                      Email
+                    </label>
+                    <span>{{ appointment.userEmail }}</span>
                   </div>
 
-                  <div class="detail-row">
-                    <span class="detail-label">Price:</span>
-                    <span class="detail-value">₱{{ appointment.price }}</span>
+                  <div class="detail-group">
+                    <label>
+                      <WalletIcon class="detail-icon" />
+                      Price
+                    </label>
+                    <span class="price">₱{{ appointment.price }}</span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <button class="admincalendar-close-button" @click="closeModal">Close</button>
+          <div class="modal-footer">
+            <button class="close-modal-button" @click="closeModal">
+              Close
+            </button>
           </div>
         </div>
       </div>
@@ -126,6 +147,17 @@
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { 
+  CalendarIcon, 
+  XIcon, 
+  ClockIcon, 
+  MailIcon, 
+  WalletIcon,
+  ScissorsIcon,
+  CalendarXIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
+} from 'lucide-vue-next';
 
 const weekDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const currentDate = ref(new Date());
@@ -287,14 +319,14 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 20px;
 }
 
 .admincalendar-title {
-  font-size: 24px;
+  font-size: 1.25rem;
   font-weight: 600;
-  color: #4F3D7C;
-  margin-bottom: 20px;
+  color: #1a1a1a;
+  text-align: left;
+  margin-bottom: 1.5rem;
 }
 
 .admincalendar-header {
@@ -399,7 +431,7 @@ onMounted(() => {
 }
 
 .admincalendar-appointment-count {
-  background-color: #8b5cf6;
+  background-color: #4F3D7C;
   color: white;
   font-size: 12px;
   padding: 2px 6px;
@@ -423,7 +455,8 @@ onMounted(() => {
 
 .admincalendar-appointment-services {
   display: flex;
-  flex-direction: column;
+  flex-direction:
+column;
   gap: 4px;
   max-height: calc(100% - 32px);
   overflow-y: auto;
@@ -461,30 +494,8 @@ onMounted(() => {
   border-left: 3px solid #EF4444;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #F3F4F6;
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #8b5cf6;
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3D2E63;
-}
-
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #8b5cf6 #F3F4F6;
-}
-
-.admincalendar-modal-overlay {
+/* Enhanced Modal Styles */
+.modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -497,186 +508,251 @@ onMounted(() => {
   z-index: 1000;
 }
 
-.admincalendar-modal {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
+.modal {
+  background: linear-gradient(to bottom, #ffffff, #f8fafc);
+  border-radius: 16px;
   width: 90%;
-  max-width: 480px;
-  max-height: 90vh; /* Increased from 80vh */
+  max-width: 520px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(79, 61, 124, 0.1);
+  overflow: hidden;
 }
 
-.admincalendar-modal-content {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-  margin-bottom: 16px; /* Added margin to prevent overlap */
+.modal-header {
+  background: linear-gradient(135deg, #4F3D7C, #6d4aa5);
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.admincalendar-modal-title {
-  font-size: 20px;
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-title h3 {
+  font-size: 1.25rem;
   font-weight: 600;
-  color: #4F3D7C;
+  color: white;
+  margin: 0;
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.close-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.modal-content {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  text-align: center;
+  color: #6b7280;
+  padding: 40px 0;
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  color: #9CA3AF;
   margin-bottom: 16px;
 }
 
 .appointments-list {
-  max-height: calc(70vh - 120px); /* Adjusted to account for header and button */
-  overflow-y: auto;
-  padding-right: 16px;
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.appointment-item {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
+.appointment-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.appointment-item:last-child {
-  margin-bottom: 4px;
+.appointment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .appointment-header {
+  background: #f3f4f6;
+  padding: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
 }
 
-.appointment-time {
-  font-size: 16px;
+.time-badge {
+  background: #4F3D7C;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
   font-weight: 600;
-  color: #374151;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.appointment-status {
+.time-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.status-badge {
+  font-size: 0.875rem;
   padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 14px;
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.appointment-status.pending {
-  background-color: #FEF3C7;
-  color: #D97706;
-}
-
-.appointment-status.approved {
-  background-color: #D1FAE5;
-  color: #059669;
-}
-
-.appointment-status.cancelled {
-  background-color: #FEE2E2;
-  color: #DC2626;
-}
-
-.appointment-details {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.detail-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-label {
-  font-size: 14px;
-  color: #6B7280;
+  border-radius: 20px;
   font-weight: 500;
 }
 
-.detail-value {
-  font-size: 14px;
-  color: #374151;
+.status-badge.pending {
+  background: #fff7ed;
+  color: #c2410c;
 }
 
-.services-list {
+.status-badge.approved {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.status-badge.cancelled {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.appointment-body {
+  padding: 20px;
+}
+
+.detail-group {
+  margin-bottom: 16px;
+}
+
+.detail-group:last-child {
+  margin-bottom: 0;
+}
+
+.detail-group label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.detail-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+.services {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .service-tag {
-  background: #E9E3FF;
-  color: #4F3D7C;
+  background: #f3f4f6;
   padding: 4px 12px;
   border-radius: 16px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 0.875rem;
+  color: #4F3D7C;
 }
 
-.no-appointments {
-  text-align: center;
-  color: #6B7280;
-  padding: 32px 0;
-  font-size: 16px;
+.price {
+  font-weight: 600;
+  color: #4F3D7C;
+  font-size: 1.1rem;
 }
 
-.admincalendar-close-button {
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.close-modal-button {
+  width: 100%;
+  padding: 12px;
   background: #4F3D7C;
   color: white;
   border: none;
-  padding: 12px;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
-  width: 100%;
-  margin-top: 16px;
+  transition: background-color 0.2s ease;
 }
 
-.admincalendar-close-button:hover {
+.close-modal-button:hover {
   background: #3D2E63;
 }
 
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #664ba8;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #664ba8;
+}
+
 @media (max-width: 640px) {
-  .admincalendar-container {
+  .modal {
+    width: 95%;
+  }
+
+  .modal-header,
+  .modal-content,
+  .modal-footer {
     padding: 16px;
   }
 
-  .admincalendar-day {
-    min-height: 100px;
-    padding: 6px;
-  }
-
-  .service-text {
-    font-size: 10px;
-  }
-
-  .service-container {
-    padding: 3px 6px;
-  }
-
-  .appointment-item {
-    padding: 12px;
-  }
-
-  .appointment-time {
-    font-size: 14px;
-  }
-
-  .service-tag {
-    font-size: 11px;
-    padding: 3px 8px;
-  }
-
-  .admincalendar-modal {
+  .appointment-header,
+  .appointment-body {
     padding: 16px;
-  }
-
-  .admincalendar-modal-title {
-    font-size: 18px;
   }
 }
 </style>
+

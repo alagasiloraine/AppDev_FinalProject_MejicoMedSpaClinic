@@ -2,7 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './routes/index';
 import { auth } from './firebase';
-import { isAdmin, getCurrentUser } from './services/authService';
+import { isAdmin } from './services/authService';
 import './assets/tailwind.css';
 import Toast from "vue-toastification";
 import "vue-toastification/dist/index.css";
@@ -13,29 +13,41 @@ app.use(Toast);
 
 let appMounted = false;
 
-// Wait for Firebase Auth to initialize
+// Modified auth state observer
 auth.onAuthStateChanged(async (user) => {
-  if (user) {
-    console.log(`User logged in: ${user.uid}`);
-    // Check if the user's email is verified
-    if (user.emailVerified) {
-      // Check if the user is an admin
-      if (await isAdmin()) {
-        router.push('/admin-dashboard');
-      } else {
-        router.push('/home');
+  try {
+    if (user) {
+      // Get fresh token on each auth state change
+      await user.getIdToken(true);
+      
+      const adminStatus = await isAdmin();
+      const route = adminStatus ? '/admin-dashboard' : '/home';
+      
+      if (!appMounted) {
+        app.mount('#app');
+        appMounted = true;
+      }
+      
+      if (router.currentRoute.value.path === '/login' || 
+          router.currentRoute.value.path === '/landing') {
+        router.push(route);
       }
     } else {
-      // If email is not verified, redirect to a verification page
-      router.push('/EmailVerification');
+      if (!appMounted) {
+        app.mount('#app');
+        appMounted = true;
+      }
+      if (router.currentRoute.value.path !== '/login' && 
+          router.currentRoute.value.path !== '/landing') {
+        router.push('/landing');
+      }
     }
-  } else {
-    // If no user is logged in, redirect to landing page
-    router.push('/landing');
-  }
-  
-  if (!appMounted) {
-    app.mount('#app');
-    appMounted = true;
+  } catch (error) {
+    console.error('Auth state change error:', error);
+    if (!appMounted) {
+      app.mount('#app');
+      appMounted = true;
+    }
   }
 });
+

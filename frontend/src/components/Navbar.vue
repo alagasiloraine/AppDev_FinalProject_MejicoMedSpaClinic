@@ -19,29 +19,21 @@
             class="inline-block w-4 h-4 ml-1 transition-transform duration-200"
           />
         </button>
-        <transition
-          enter-active-class="transition ease-out duration-200"
-          enter-from-class="opacity-0 translate-y-1"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition ease-in duration-150"
-          leave-from-class="opacity-100 translate-y-0"
-          leave-to-class="opacity-0 translate-y-1"
+        <div 
+          v-show="isDropdownOpen" 
+          class="dropdown-menu"
+          :class="{ 'dropdown-menu-active': isDropdownOpen }"
         >
-          <div v-if="isDropdownOpen" class="dropdown-menu">
-            <router-link to="/clientappointment" class="dropdown-item" active-class="active" @click="closeDropdown">
-              <Calendar size="16" class="icon" /> Appointments
-            </router-link>
-            <!-- <a @click="navigateTo('/clientappointment')" class="dropdown-item">
-              <Calendar size="16" class="icon" /> Appointments
-            </a> -->
-            <router-link to="/calendar" class="dropdown-item" active-class="active" @click="closeDropdown">
-              <ClipboardList size="16" class="icon" /> View Calendar
-            </router-link>
-            <router-link to="/clientoffers" class="dropdown-item" active-class="active" @click="closeDropdown">
-              <Tag size="16" class="icon" /> Offers
-            </router-link>
-          </div>  
-        </transition>
+          <router-link to="/clientappointment" class="dropdown-item" active-class="active" @click="closeDropdown">
+            <Calendar size="16" class="icon" /> Appointments
+          </router-link>
+          <router-link to="/calendar" class="dropdown-item" active-class="active" @click="closeDropdown">
+            <ClipboardList size="16" class="icon" /> View Calendar
+          </router-link>
+          <router-link to="/clientoffers" class="dropdown-item" active-class="active" @click="closeDropdown">
+            <Tag size="16" class="icon" /> Offers
+          </router-link>
+        </div>
       </div>
       <router-link to="/contact" class="nav-item" active-class="active">Contact Us</router-link>
       
@@ -107,12 +99,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import { getAuth, onAuthStateChanged } from 'firebase/auth'
+import { ref, onMounted, computed } from 'vue'
+import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
 import { database } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { ChevronDown, UserCircle2, UserCog2, Shield, LogOut } from 'lucide-vue-next'
-import { Calendar, ClipboardList, Tag } from 'lucide-vue-next'
+import { ChevronDown, UserCircle2, UserCog2, Shield, LogOut, Calendar, ClipboardList, Tag } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 
 // State
@@ -128,14 +119,18 @@ const router = useRouter()
 const route = useRoute()
 const logoutMessage = ref('')
 
-// Computed property to check if "Services" routes are active
+// Computed
 const isServicesActive = computed(() => {
-  return ['/clientappointment', '/calendar', '/offers'].includes(route.path)
+  const servicesRoutes = ['/clientappointment', '/calendar', '/clientoffers']
+  return servicesRoutes.includes(route.path)
 })
 
 // Methods
 const toggleDropdown = () => {
   isDropdownOpen.value = !isDropdownOpen.value
+  if (isDropdownOpen.value) {
+    userDropdownOpen.value = false
+  }
 }
 
 const closeDropdown = () => {
@@ -144,52 +139,79 @@ const closeDropdown = () => {
 
 const toggleUserDropdown = () => {
   userDropdownOpen.value = !userDropdownOpen.value
+  if (userDropdownOpen.value) {
+    isDropdownOpen.value = false
+  }
 }
 
 const closeUserDropdown = () => {
   userDropdownOpen.value = false
 }
 
-const navigateTo = (path) => {
-  closeDropdown()
-  router.push(path).catch(err => {
-    console.error('Navigation failed:', err)
-    if (err.name !== 'NavigationDuplicated') {
-      throw err
-    }
-  })
-}
-
-const logout = async () => {
-  logoutMessage.value = 'Logging out, please wait...'
-  setTimeout(async () => {
+// Fetch user data with error handling
+const fetchUserData = async (userId) => {
+  try {
     const auth = getAuth()
-    try {
-      await auth.signOut()
-      userData.value = {
-        username: '',
-        fullName: '',
-        email: '',
-        profileImage: ''
-      }
-      userDropdownOpen.value = false
-      logoutMessage.value = ''
-      sessionStorage.removeItem('currentPath')
-      await router.push('/')
-    } catch (error) {
-      console.error("Error logging out:", error)
-      logoutMessage.value = ''
+    const idToken = await auth.currentUser?.getIdToken(true)
+    
+    if (!idToken) {
+      console.error("No authentication token available")
+      return
     }
-  }, 2000)
+
+    const userDocRef = doc(database, "users", userId)
+    const userDoc = await getDoc(userDocRef)
+    
+    if (userDoc.exists()) {
+      const data = userDoc.data()
+      userData.value = {
+        username: data.username || 'User',
+        fullName: data.fullName || '',
+        email: data.email || auth.currentUser?.email || '',
+        profileImage: data.profileImage || ''
+      }
+    } else {
+      // Create default user document if it doesn't exist
+      const defaultUserData = {
+        username: 'User',
+        email: auth.currentUser?.email || '',
+        createdAt: new Date().toISOString()
+      }
+      //await setDoc(userDocRef, defaultUserData) // Removed as setDoc is not imported
+      userData.value = defaultUserData
+    }
+  } catch (error) {
+    console.error("Error fetching user data:", error)
+    // Set default values on error
+    userData.value = {
+      username: 'User',
+      email: getAuth().currentUser?.email || '',
+      fullName: '',
+      profileImage: ''
+    }
+  }
 }
 
-// Watch for route changes
-watch(() => route.fullPath, () => {
-  closeDropdown()
-  closeUserDropdown()
-})
+// Logout handler
+const logout = async () => {
+  try {
+    const auth = getAuth()
+    await signOut(auth)
+    logoutMessage.value = 'Successfully logged out!'
+    setTimeout(() => {
+      logoutMessage.value = ''
+      router.push('/login')
+    }, 2000)
+  } catch (error) {
+    console.error("Logout error:", error)
+    logoutMessage.value = 'Error logging out. Please try again.'
+    setTimeout(() => {
+      logoutMessage.value = ''
+    }, 2000)
+  }
+}
 
-// Click Outside Directive
+// Click outside directive
 const vClickOutside = {
   mounted(el, binding) {
     el.clickOutsideEvent = (event) => {
@@ -201,25 +223,6 @@ const vClickOutside = {
   },
   unmounted(el) {
     document.removeEventListener('click', el.clickOutsideEvent)
-  },
-}
-
-// Fetch user data function
-const fetchUserData = async (userId) => {
-  try {
-    const userDocRef = doc(database, "users", userId)
-    const userDoc = await getDoc(userDocRef)
-    if (userDoc.exists()) {
-      const data = userDoc.data()
-      userData.value = {
-        username: data.username || '',
-        fullName: data.fullName || '',
-        email: data.email || '',
-        profileImage: data.profileImage || ''
-      }
-    }
-  } catch (error) {
-    console.error("Error fetching user data:", error)
   }
 }
 
@@ -236,6 +239,7 @@ onMounted(() => {
         email: '',
         profileImage: ''
       }
+      router.push('/login')
     }
   })
 })
@@ -343,14 +347,23 @@ nav {
 .dropdown-menu {
   position: absolute;
   top: calc(100% + 5px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0; /* Change from transform: translateX(-50%) to left: 0 */
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   min-width: 180px;
   z-index: 1000;
+  display: none;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.dropdown-menu-active {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .dropdown-item {
@@ -523,3 +536,4 @@ nav {
   font-weight: bold;
 }
 </style>
+

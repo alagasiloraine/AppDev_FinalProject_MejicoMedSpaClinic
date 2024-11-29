@@ -1,4 +1,4 @@
-import { auth, database } from '../firebase';
+import { auth, database } from '../firebase'
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -7,106 +7,110 @@ import {
   signOut,
   onAuthStateChanged,
   applyActionCode
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+} from 'firebase/auth'
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 
+// Export all necessary functions
 export const register = async (email, password, firstName, lastName, username) => {
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    await sendEmailVerification(user);
-    await createUserDocument(user, { firstName, lastName, username });
-    return user;
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+    const user = userCredential.user
+    await sendEmailVerification(user)
+    await createUserDocument(user, { firstName, lastName, username })
+    return user
   } catch (error) {
-    console.error('Registration error:', error);
-    throw error;
+    console.error('Registration error:', error)
+    throw error
   }
-};
+}
 
+export const resendEmailVerification = async () => {
+  try {
+    const user = auth.currentUser
+    if (!user) {
+      throw new Error('No user is currently signed in')
+    }
+    await sendEmailVerification(user)
+    return true
+  } catch (error) {
+    console.error('Error resending verification:', error)
+    throw error
+  }
+}
+
+// Rest of your existing authService code...
 export const login = async (email, password) => {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    if (!user.emailVerified) {
-      throw new Error('Please verify your email before logging in.');
+    const userCredential = await signInWithEmailAndPassword(auth, email, password)
+    const user = userCredential.user
+    
+    const userDoc = await getDoc(doc(database, 'users', user.uid))
+    if (!userDoc.exists()) {
+      await setDoc(doc(database, 'users', user.uid), {
+        email: user.email,
+        role: 'client',
+        createdAt: new Date().toISOString()
+      })
     }
-    const userRole = await getUserRole(user.uid);
-    localStorage.setItem('userRole', userRole);
-    return { user, role: userRole };
+
+    const userRole = userDoc.exists() ? userDoc.data().role : 'client'
+    localStorage.setItem('userRole', userRole)
+
+    await user.getIdToken(true)
+    return { user, role: userRole }
   } catch (error) {
-    console.error('Login error:', error);
-    throw error;
+    console.error('Login error:', error)
+    throw error
   }
-};
+}
 
 export const resetPassword = async (email) => {
   try {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(auth, email)
   } catch (error) {
-    console.error('Password reset error:', error);
-    throw error;
+    console.error('Password reset error:', error)
+    throw error
   }
-};
+}
 
 export const logout = async () => {
   try {
-    await signOut(auth);
-    localStorage.removeItem('userRole');
+    await signOut(auth)
+    localStorage.removeItem('userRole')
   } catch (error) {
-    console.error('Logout error:', error);
-    throw error;
+    console.error('Logout error:', error)
+    throw error
   }
-};
-
-export const resendEmailVerification = async () => {
-  const user = auth.currentUser;
-  if (user) {
-    try {
-      await sendEmailVerification(user);
-      console.log('Verification email sent successfully.');
-    } catch (error) {
-      console.error('Error resending email verification:', error);
-      throw error;
-    }
-  } else {
-    throw new Error('No user is currently signed in');
-  }
-};
+}
 
 export const isAdmin = async () => {
-  const user = auth.currentUser;
-  if (!user) return false;
-  const userRole = await getUserRole(user.uid);
-  return userRole === 'admin';
-};
+  try {
+    const user = auth.currentUser
+    if (!user) return false
+
+    const userDoc = await getDoc(doc(database, 'users', user.uid))
+    if (!userDoc.exists()) return false
+
+    const userData = userDoc.data()
+    return userData.role === 'admin'
+  } catch (error) {
+    console.error('Error checking admin status:', error)
+    return false
+  }
+}
 
 export const getCurrentUser = () => {
   return new Promise((resolve, reject) => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      unsubscribe();
-      resolve(user);
-    }, reject);
-  });
-};
-
-export const verifyEmail = async (actionCode) => {
-  try {
-    await applyActionCode(auth, actionCode);
-    const user = auth.currentUser;
-    if (user) {
-      await updateUserVerificationStatus(user.uid, true);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('Email verification error:', error);
-    throw error;
-  }
-};
+      unsubscribe()
+      resolve(user)
+    }, reject)
+  })
+}
 
 const createUserDocument = async (user, additionalData = {}) => {
-  const userRef = doc(database, 'users', user.uid);
-  const userSnap = await getDoc(userRef);
+  const userRef = doc(database, 'users', user.uid)
+  const userSnap = await getDoc(userRef)
 
   if (!userSnap.exists()) {
     const userData = {
@@ -115,20 +119,16 @@ const createUserDocument = async (user, additionalData = {}) => {
       firstName: additionalData.firstName,
       lastName: additionalData.lastName,
       username: additionalData.username,
-      role: 'client', // Default role is client
+      role: 'client',
       registrationDate: new Date().toISOString(),
-    };
-    await setDoc(userRef, userData);
+    }
+    await setDoc(userRef, userData)
   }
-};
+}
 
-const getUserRole = async (uid) => {
-  const userRef = doc(database, 'users', uid);
-  const userSnap = await getDoc(userRef);
-  return userSnap.exists() ? userSnap.data().role : 'client';
-};
-
-const updateUserVerificationStatus = async (uid, isVerified) => {
-  const userRef = doc(database, 'users', uid);
-  await updateDoc(userRef, { isVerified });
-};
+// Export all necessary functions
+export {
+  createUserDocument,
+  sendEmailVerification,
+  applyActionCode
+}

@@ -23,20 +23,10 @@
       </button>
     </div>
 
-    <div class="adminservice-search-section">
-      <div class="adminservice-search-container">
-        <div class="adminservice-search-wrapper">
-          <Search class="adminservice-search-icon" size="18" />
-          <input 
-            type="text" 
-            v-model="searchQuery" 
-            placeholder="Search services..." 
-            class="adminservice-search-input"
-          />
-        </div>
-      </div>
-      <div class="adminservice-filter-container">
-        <select v-model="durationFilter" class="adminservice-duration-filter">
+    <div class="adminservice-search-controls">
+      <div class="adminservice-search-wrapper">
+        <Clock class="adminservice-search-icon" />
+        <select v-model="durationFilter" class="adminservice-select">
           <option value="">Filter by duration</option>
           <option value="30">30 minutes</option>
           <option value="45">45 minutes</option>
@@ -44,6 +34,23 @@
           <option value="90">90 minutes</option>
         </select>
       </div>
+      <div class="adminservice-search-wrapper">
+        <Search class="adminservice-search-icon" />
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="Search services..." 
+          class="adminservice-search-input"
+        />
+      </div>
+      <button @click="applyFilters" class="adminservice-btn adminservice-btn-primary">
+        <Filter class="adminservice-btn-icon" />
+        Search
+      </button>
+      <button @click="resetFilters" class="adminservice-btn adminservice-btn-secondary">
+        <RotateCcw class="adminservice-btn-icon" />
+        Reset
+      </button>
     </div>
 
     <div class="adminservice-services-table">
@@ -106,22 +113,52 @@
       </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Enhanced Modal -->
     <div v-if="isModalOpen" class="adminservice-modal">
+      <div class="adminservice-modal-overlay" @click="closeModal"></div>
       <div class="adminservice-modal-content">
-        <h3>{{ editingService ? 'Edit Service' : 'Add New Service' }}</h3>
+        <div class="adminservice-modal-header">
+          <h3>{{ editingService ? 'Edit Service' : 'Add New Service' }}</h3>
+          <button @click="closeModal" class="adminservice-modal-close">
+            <X size="20" />
+          </button>
+        </div>
         <form @submit.prevent="editingService ? updateService() : addService()" class="adminservice-service-form">
           <div class="adminservice-form-group">
             <label for="serviceName">Service Name</label>
-            <input v-model="currentService.name" type="text" id="serviceName" required />
+            <div class="adminservice-input-wrapper">
+              <input 
+                v-model="currentService.name" 
+                type="text" 
+                id="serviceName" 
+                required 
+                placeholder="Enter service name"
+              />
+              <Clipboard class="adminservice-input-icon" size="16" />
+            </div>
           </div>
           <div class="adminservice-form-group">
             <label for="serviceDuration">Duration (minutes)</label>
-            <input v-model="currentService.duration" type="number" id="serviceDuration" required />
+            <div class="adminservice-input-wrapper">
+              <input 
+                v-model="currentService.duration" 
+                type="number" 
+                id="serviceDuration" 
+                required 
+                placeholder="Enter duration"
+                min="15"
+                step="15"
+              />
+              <Clock class="adminservice-input-icon" size="16" />
+            </div>
           </div>
           <div class="adminservice-modal-actions">
-            <button type="button" @click="closeModal" class="adminservice-cancel-button">Cancel</button>
+            <button type="button" @click="closeModal" class="adminservice-cancel-button">
+              <X size="16" />
+              Cancel
+            </button>
             <button type="submit" class="adminservice-submit-button">
+              <Check size="16" />
               {{ editingService ? 'Update' : 'Add' }} Service
             </button>
           </div>
@@ -151,7 +188,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle } from 'lucide-vue-next';
+import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle, Clock, Filter, X, Check, Clipboard } from 'lucide-vue-next';
 
 const services = ref([]);
 const currentService = ref({ name: '', duration: 60 });
@@ -319,6 +356,16 @@ const nextPage = () => {
     currentPage.value++;
   }
 };
+
+const applyFilters = () => {
+  currentPage.value = 1;
+};
+
+const resetFilters = () => {
+  searchQuery.value = '';
+  durationFilter.value = '';
+  currentPage.value = 1;
+};
 </script>
 
 <style scoped>
@@ -384,25 +431,78 @@ const nextPage = () => {
   font-weight: 500;
 }
 
-.adminservice-search-section {
+.adminservice-search-controls {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
-.adminservice-search-input, .adminservice-duration-filter {
-  padding: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.adminservice-search-container {
+.adminservice-search-wrapper {
+  position: relative;
   flex: 1;
 }
 
-.adminservice-filter-container {
-  width: 200px;
+.adminservice-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: #718096;
+}
+
+.adminservice-select,
+.adminservice-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #4a5568;
+  background-color: white;
+  transition: all 0.2s;
+}
+
+.adminservice-select:focus,
+.adminservice-search-input:focus {
+  outline: none;
+  border-color: #9f7aea;
+  box-shadow: 0 0 0 3px rgba(159, 122, 234, 0.1);
+}
+
+.adminservice-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+.adminservice-btn-primary {
+  background: linear-gradient(135deg, #9f7aea, #667eea);
+  color: white;
+}
+
+.adminservice-btn-secondary {
+  background-color: #edf2f7;
+  color: #4a5568;
+}
+
+.adminservice-btn-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+}
+
+.adminservice-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .adminservice-services-table {
@@ -483,77 +583,6 @@ const nextPage = () => {
   overflow-y: auto;
 }
 
-.adminservice-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.adminservice-modal-content {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  width: 400px;
-  max-width: 90%;
-}
-
-.adminservice-modal-content h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 1rem;
-}
-
-.adminservice-form-group {
-  margin-bottom: 1rem;
-}
-
-.adminservice-form-group label {
-  display: block;
-  margin-bottom: 0.25rem;
-  color: #374151;
-  font-size: 0.875rem;
-}
-
-.adminservice-form-group input {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.adminservice-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
-.adminservice-submit-button, .adminservice-cancel-button {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.adminservice-submit-button {
-  background: #8b5cf6;
-  color: white;
-}
-
-.adminservice-cancel-button {
-  background: #e5e7eb;
-  color: #374151;
-}
-
 .adminservice-pagination {
   display: flex;
   justify-content: space-between;
@@ -588,37 +617,6 @@ const nextPage = () => {
   text-align: center;
   color: #6b7280;
   font-size: 0.875rem;
-}
-
-.adminservice-search-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.adminservice-search-icon {
-  position: absolute;
-  left: 12px;
-  color: #6b7280;
-}
-
-.adminservice-search-input {
-  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
-  width: 300px;
-}
-
-.adminservice-service-name {
-  padding-right: 2rem;
-}
-
-.adminservice-duration {
-  text-align: center;
-}
-
-.adminservice-actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
 .adminservice-notification {
@@ -684,5 +682,190 @@ const nextPage = () => {
 .fade-leave-to {
   opacity: 0;
   transform: translate(-50%, -60%);
+}
+
+/* Enhanced Modal Styles */
+.adminservice-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.adminservice-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.adminservice-modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 500px;
+  max-width: 95%;
+  position: relative;
+  z-index: 51;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+}
+
+.adminservice-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+}
+
+.adminservice-modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.adminservice-modal-close {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.adminservice-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.adminservice-service-form {
+  padding: 1.5rem;
+}
+
+.adminservice-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.adminservice-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.adminservice-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.adminservice-input-wrapper input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  background: #f9fafb;
+}
+
+.adminservice-input-wrapper input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+.adminservice-input-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.adminservice-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.adminservice-submit-button,
+.adminservice-cancel-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.adminservice-submit-button {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+  border: none;
+}
+
+.adminservice-submit-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.2);
+}
+
+.adminservice-cancel-button {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+}
+
+.adminservice-cancel-button:hover {
+  background: #e5e7eb;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .adminservice-search-controls {
+    flex-direction: column;
+  }
+
+  .adminservice-search-wrapper {
+    width: 100%;
+  }
 }
 </style>

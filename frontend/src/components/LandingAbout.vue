@@ -107,6 +107,7 @@ const content = ref([
   color: #333;
   padding: 20px;
   overflow-x: hidden; /* Prevents horizontal scrollbar */
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ff 100%);
 }
 
 /* Hero Section Styling */

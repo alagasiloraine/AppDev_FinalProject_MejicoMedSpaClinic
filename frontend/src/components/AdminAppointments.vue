@@ -83,7 +83,29 @@
 
     <!-- Appointment Details with scrollable table -->
     <div class="appointment-details">
-      <h3 class="section-title">Appointment Details</h3>
+      <div class="section-header">
+        <h3 class="section-title">Appointment Details</h3>
+        <div class="dropdown">
+          <button class="export-button" @click="$refs.exportMenu.classList.toggle('show')">
+            <Download class="btn-icon" />
+            Export
+          </button>
+          <div ref="exportMenu" class="dropdown-menu">
+            <button @click="exportToPDF" class="dropdown-item">
+              <File class="btn-icon" />
+              Export as PDF
+            </button>
+            <button @click="exportToExcel" class="dropdown-item">
+              <FileSpreadsheet class="btn-icon" />
+              Export as Excel
+            </button>
+            <button @click="exportToCSV" class="dropdown-item">
+              <FileText class="btn-icon" />
+              Export as CSV
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="table-wrapper">
         <table v-if="!loading && filteredAppointments.length > 0" class="appointments-table">
           <thead>
@@ -92,7 +114,7 @@
               <th>Email</th>
               <th>Date</th>
               <th>Time</th>
-              <th>Treatment</th>
+              <th>Services</th>
               <th>Price</th>
               <th>Status</th>
               <th>Actions</th>
@@ -100,11 +122,38 @@
           </thead>
           <tbody>
             <tr v-for="appointment in filteredAppointments" :key="appointment.id">
-              <td>{{ appointment.clientName }}</td>
-              <td>{{ appointment.userEmail }}</td>
-              <td>{{ formatDate(appointment.date) }}</td>
+              <td class="tooltip-cell">
+                <div class="truncate">{{ appointment.clientName }}</div>
+                <div class="tooltip">{{ appointment.clientName }}</div>
+              </td>
+              <td class="tooltip-cell">
+                <div class="truncate">{{ appointment.userEmail }}</div>
+                <div class="tooltip">{{ appointment.userEmail }}</div>
+              </td>
+              <td class="tooltip-cell">
+                <div class="truncate">{{ formatDate(appointment.date) }}</div>
+                <div class="tooltip">{{ formatDate(appointment.date) }}</div>
+              </td>
               <td>{{ appointment.time }}</td>
-              <td>{{ appointment.service }}</td>
+              <td class="relative group">
+                <div class="truncate max-w-[150px]" :title="appointment.services?.join(', ')">
+                  {{ appointment.services?.[0] || 'No service' }}
+                  <span v-if="appointment.services?.length > 1" class="text-gray-400">+{{ appointment.services.length - 1 }} more</span>
+                </div>
+                <div v-if="appointment.services?.length > 1" 
+                     class="absolute hidden group-hover:block z-10 bg-white border border-gray-200 rounded-lg shadow-xl p-3 min-w-[200px] max-w-[300px] left-0 mt-2 transform transition-all duration-200 ease-in-out">
+                  <div class="text-sm font-medium text-gray-700 mb-2">All Services:</div>
+                  <ul class="space-y-2">
+                    <li v-for="(service, index) in appointment.services" 
+                        :key="index"
+                        class="text-sm text-gray-600 whitespace-normal flex items-center">
+                      <div class="w-2 h-2 rounded-full bg-purple-400 mr-2"></div>
+                      {{ service }}
+                    </li>
+                  </ul>
+                  <div class="absolute -top-2 left-4 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45"></div>
+                </div>
+              </td>
               <td>₱{{ appointment.price || '0.00' }}</td>
               <td>
                 <span :class="['status-badge', getStatusClass(appointment.status)]">
@@ -158,7 +207,11 @@ import {
   Filter,
   RotateCcw,
   CalendarDays,
-  AlertCircle
+  AlertCircle,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  File
 } from 'lucide-vue-next';
 
 const appointments = ref([]);
@@ -187,7 +240,8 @@ const fetchAppointments = async () => {
         date: data.date instanceof Timestamp ? data.date : Timestamp.fromDate(new Date(data.date)),
         status: data.status || 'pending',
         clientName: userData ? `${userData.firstName} ${userData.lastName}` : 'Unknown Client',
-        userEmail: userData ? userData.email : 'Unknown Email'
+        userEmail: userData ? userData.email : 'Unknown Email',
+        services: data.services || [data.service]
       });
     }
 
@@ -249,7 +303,9 @@ const filteredAppointments = computed(() => {
       ? (appointment.date.toDate().getMonth() + 1) === Number(searchMonth.value)
       : true;
     const matchesTreatment = searchTreatment.value
-      ? appointment.service.toLowerCase().includes(searchTreatment.value.toLowerCase())
+      ? appointment.services.some(service => 
+          service.toLowerCase().includes(searchTreatment.value.toLowerCase())
+        )
       : true;
     return matchesName && matchesMonth && matchesTreatment;
   });
@@ -282,6 +338,91 @@ const getStatusClass = (status) => {
 
 const formatStatus = (status) => {
   return status === 'pending cancellation' ? 'pending cancel' : status;
+};
+
+const exportToPDF = async () => {
+  try {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    
+    const doc = new jsPDF();
+    const tableData = filteredAppointments.value.map(appointment => [
+      appointment.clientName,
+      appointment.userEmail,
+      formatDate(appointment.date),
+      appointment.time,
+      appointment.services?.join(', ') || 'No service',
+      `₱${appointment.price || '0.00'}`,
+      appointment.status
+    ]);
+
+    doc.autoTable({
+      head: [['Patient Name', 'Email', 'Date', 'Time', 'Services', 'Price', 'Status']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [139, 92, 246] }
+    });
+
+    doc.save('appointments.pdf');
+  } catch (err) {
+    console.error('Error exporting to PDF:', err);
+    error.value = 'Failed to export PDF. Please try again.';
+  }
+};
+
+const exportToExcel = async () => {
+  try {
+    const XLSX = await import('xlsx');
+    
+    const data = filteredAppointments.value.map(appointment => ({
+      'Patient Name': appointment.clientName,
+      'Email': appointment.userEmail,
+      'Date': formatDate(appointment.date),
+      'Time': appointment.time,
+      'Services': appointment.services?.join(', ') || 'No service',
+      'Price': `₱${appointment.price || '0.00'}`,
+      'Status': appointment.status
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Appointments');
+    
+    XLSX.writeFile(wb, 'appointments.xlsx');
+  } catch (err) {
+    console.error('Error exporting to Excel:', err);
+    error.value = 'Failed to export Excel file. Please try again.';
+  }
+};
+
+const exportToCSV = async () => {
+  try {
+    const XLSX = await import('xlsx');
+    
+    const data = filteredAppointments.value.map(appointment => ({
+      'Patient Name': appointment.clientName,
+      'Email': appointment.userEmail,
+      'Date': formatDate(appointment.date),
+      'Time': appointment.time,
+      'Services': appointment.services?.join(', ') || 'No service',
+      'Price': `₱${appointment.price || '0.00'}`,
+      'Status': appointment.status
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'appointments.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Error exporting to CSV:', err);
+    error.value = 'Failed to export CSV file. Please try again.';
+  }
 };
 
 onMounted(() => {
@@ -407,14 +548,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.adminappointment-stat-icon-wrapper {
-  background: rgba(159, 122, 234, 0.1);
-  padding: 0.75rem;
-  border-radius: 8px;
-  margin-right: 0.75rem;
+  margin-bottom: 1px;
 }
 
 .adminappointment-stat-card {
@@ -432,6 +566,13 @@ onMounted(() => {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
+.adminappointment-stat-icon-wrapper {
+  background: rgba(159, 122, 234, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-right: 0.75rem;
+}
+
 .adminappointment-stat-icon {
   width: 1.25rem;
   height: 1.25rem;
@@ -443,7 +584,7 @@ onMounted(() => {
 }
 
 .adminappointment-stat-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #9f7aea;
   margin: 0;
@@ -460,13 +601,23 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  margin-top: 1rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .section-title {
   font-size: 1.25rem;
   font-weight: 600;
-  margin-bottom: 1rem;
   color: #1a1a1a;
+  margin: 0;
 }
 
 .table-wrapper {
@@ -474,29 +625,7 @@ onMounted(() => {
   overflow-y: auto;
   border-radius: 0.5rem;
   background: white;
-  padding-right: 4px;
-  
-  &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-    margin-right: 2px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: #f3f4f6;
-    border-radius: 6px;
-    margin: 4px 0;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: #9f7aea;
-    border-radius: 6px;
-    border: 2px solid #f3f4f6;
-  }
-  
-  &::-webkit-scrollbar-thumb:hover {
-    background: #7c3aed;
-  }
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
 
 .appointments-table {
@@ -512,33 +641,43 @@ onMounted(() => {
   background-color: #8b5cf6;
 }
 
+.appointments-table th,
+.appointments-table td {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  border-right: 1px solid #e5e7eb;
+}
+
+.appointments-table th:last-child,
+.appointments-table td:last-child {
+  border-right: none;
+}
+
 .appointments-table th {
-  color: white;
-  font-weight: 500;
-  text-align: left;
-  padding: 0.75rem 1rem;
-}
-
-.appointments-table th:first-child {
-  border-top-left-radius: 0.5rem;
-}
-
-.appointments-table th:last-child {
-  border-top-right-radius: 0.5rem;
+  color: #f8fafc;
 }
 
 .appointments-table td {
-  padding: 0.75rem 1rem;
   border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease;
+}
+
+.appointments-table tr:last-child td {
+  border-bottom: none;
+}
+.appointments-table tr:hover {
+  background-color: rgba(139, 92, 246, 0.1); /* Pastel purple with low opacity */
 }
 
 .status-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
+  line-height: 1;
 }
 
 .status-badge.approved {
@@ -557,8 +696,7 @@ onMounted(() => {
 }
 
 .actions-cell {
-  display: flex;
-  gap: 0.5rem;
+  white-space: nowrap;
 }
 
 .action-buttons {
@@ -567,13 +705,14 @@ onMounted(() => {
 }
 
 .action-button {
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
   border: none;
   transition: opacity 0.2s ease;
+  line-height: 1;
 }
 
 .action-button:disabled {
@@ -586,17 +725,9 @@ onMounted(() => {
   color: white;
 }
 
-.action-button.approve:disabled {
-  background-color: #22c55e;
-}
-
 .action-button.decline {
   background-color: #ef4444;
   color: white;
-}
-
-.action-button.decline:disabled {
-  background-color: #ef4444;
 }
 
 .no-data,
@@ -604,10 +735,6 @@ onMounted(() => {
   text-align: center;
   color: #8b5cf6;
   padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
 }
 
 .loading-icon {
@@ -625,4 +752,125 @@ onMounted(() => {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+.tooltip-cell {
+  position: relative;
+  max-width: 200px;
+}
+
+.tooltip {
+  visibility: hidden;
+  position: absolute;
+  z-index: 1;
+  background-color: #8b5cf6;
+  color: white;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 10px;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+}
+
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #8b5cf6 transparent transparent transparent;
+}
+
+.tooltip-cell:hover .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.additional-services {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-button:hover {
+  background-color: #7c3aed;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 50;
+  min-width: 12rem;
+}
+
+.dropdown-menu.show {
+  display: block;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #374151;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropdown-item:hover {
+  background-color: #f3f4f6;
+  color: #7c3aed;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 </style>
+

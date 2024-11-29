@@ -7,7 +7,7 @@
       <span>{{ error }}</span>
     </div>
 
-    <!-- Search Bar -->
+    <!-- Search Controls -->
     <div class="search-controls">
       <div class="search-wrapper">
         <CalendarDays class="search-icon" />
@@ -52,16 +52,38 @@
 
     <!-- Appointments Table -->
     <div class="table-container">
-      <h3 class="section-title">Appointment Details</h3>
+      <div class="section-header">
+        <h3 class="section-title">Appointment Details</h3>
+        <div class="dropdown">
+          <button class="export-button" @click="$refs.exportMenu.classList.toggle('show')">
+            <Download class="btn-icon" />
+            Export
+          </button>
+          <div ref="exportMenu" class="dropdown-menu">
+            <button @click="exportToPDF" class="dropdown-item">
+              <File class="btn-icon" />
+              Export as PDF
+            </button>
+            <button @click="exportToExcel" class="dropdown-item">
+              <FileSpreadsheet class="btn-icon" />
+              Export as Excel
+            </button>
+            <button @click="exportToCSV" class="dropdown-item">
+              <FileText class="btn-icon" />
+              Export as CSV
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="table-responsive">
-        <table v-if="!loading && filteredAppointments.length > 0" class="appointments-table">
+        <table v-if="!loading && filteredAppointments.length > 0" class="adminappointments-table">
           <thead>
             <tr>
               <th>Patient Name</th>
               <th>Email</th>
               <th>Date</th>
               <th>Time</th>
-              <th>Treatment</th>
+              <th>Services</th>
               <th>Price</th>
               <th>Status</th>
             </tr>
@@ -71,13 +93,45 @@
               <td>
                 <div class="patient-info">
                   <User class="patient-icon" />
-                  <span>{{ appointment.patientName }}</span>
+                  <span class="truncate-text">{{ appointment.patientName }}</span>
                 </div>
               </td>
-              <td>{{ appointment.userEmail }}</td>
-              <td>{{ formatDate(appointment.date) }}</td>
+              <td>
+                <div class="tooltip-container">
+                  <span class="truncate-text">{{ appointment.userEmail }}</span>
+                  <div class="tooltip">{{ appointment.userEmail }}</div>
+                </div>
+              </td>
+              <td>
+                <div class="tooltip-container">
+                  <span class="truncate-text">{{ formatDate(appointment.date) }}</span>
+                  <div class="tooltip">{{ formatDate(appointment.date) }}</div>
+                </div>
+              </td>
               <td>{{ appointment.time }}</td>
-              <td>{{ appointment.service }}</td>
+              <td>
+                <div class="services-cell relative group">
+                  <div class="truncate-text">
+                    {{ appointment.services[0] }}
+                    <span v-if="appointment.services?.length > 1" class="text-gray-400 text-xs ml-1">
+                      +{{ appointment.services.length - 1 }} more
+                    </span>
+                  </div>
+                  <div v-if="appointment.services?.length > 1" 
+                       class="absolute hidden group-hover:block z-10 bg-white border border-gray-200 rounded-lg shadow-xl p-3 min-w-[200px] max-w-[300px] left-0 mt-2">
+                    <div class="text-sm font-medium text-gray-700 mb-2">All Services:</div>
+                    <ul class="space-y-2">
+                      <li v-for="(service, index) in appointment.services" 
+                          :key="index"
+                          class="text-sm text-gray-600 flex items-center">
+                        <div class="w-2 h-2 rounded-full bg-purple-400 mr-2"></div>
+                        {{ service }}
+                      </li>
+                    </ul>
+                    <div class="absolute -top-2 left-4 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45"></div>
+                  </div>
+                </div>
+              </td>
               <td class="price-cell">₱{{ formatPrice(appointment.price) }}</td>
               <td>
                 <span class="status-badge">
@@ -117,7 +171,11 @@ import {
   CheckCircle,
   Inbox,
   Loader,
-  AlertCircle
+  AlertCircle,
+  Download,
+  File,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-vue-next';
 
 const appointments = ref([]);
@@ -144,6 +202,7 @@ const fetchApprovedAppointments = async () => {
       ...doc.data(),
       date: doc.data().date instanceof Timestamp ? doc.data().date : Timestamp.fromDate(new Date(doc.data().date)),
       price: doc.data().price || 0,
+      services: doc.data().services || [],
     }));
 
     appointments.value = await Promise.all(appointmentsData.map(async (appointment) => {
@@ -186,7 +245,7 @@ const filteredAppointments = computed(() => {
       ? (appointment.date.toDate().getMonth() + 1) === Number(searchMonth.value)
       : true;
     const matchesTreatment = searchTreatment.value
-      ? appointment.service.toLowerCase().includes(searchTreatment.value.toLowerCase())
+      ? appointment.services.some(service => service.toLowerCase().includes(searchTreatment.value.toLowerCase()))
       : true;
     return matchesMonth && matchesTreatment;
   });
@@ -199,6 +258,91 @@ const applyFilters = () => {
 const resetFilters = () => {
   searchMonth.value = '';
   searchTreatment.value = '';
+};
+
+const exportToPDF = async () => {
+  try {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    
+    const doc = new jsPDF();
+    const tableData = filteredAppointments.value.map(appointment => [
+      appointment.patientName,
+      appointment.userEmail,
+      formatDate(appointment.date),
+      appointment.time,
+      appointment.services?.join(', ') || 'No service',
+      `₱${formatPrice(appointment.price)}`,
+      'Approved'
+    ]);
+
+    doc.autoTable({
+      head: [['Patient Name', 'Email', 'Date', 'Time', 'Services', 'Price', 'Status']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [139, 92, 246] }
+    });
+
+    doc.save('approved-appointments.pdf');
+  } catch (err) {
+    console.error('Error exporting to PDF:', err);
+    error.value = 'Failed to export PDF. Please try again.';
+  }
+};
+
+const exportToExcel = async () => {
+  try {
+    const XLSX = await import('xlsx');
+    
+    const data = filteredAppointments.value.map(appointment => ({
+      'Patient Name': appointment.patientName,
+      'Email': appointment.userEmail,
+      'Date': formatDate(appointment.date),
+      'Time': appointment.time,
+      'Services': appointment.services?.join(', ') || 'No service',
+      'Price': `₱${formatPrice(appointment.price)}`,
+      'Status': 'Approved'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Approved Appointments');
+    
+    XLSX.writeFile(wb, 'approved-appointments.xlsx');
+  } catch (err) {
+    console.error('Error exporting to Excel:', err);
+    error.value = 'Failed to export Excel file. Please try again.';
+  }
+};
+
+const exportToCSV = async () => {
+  try {
+    const XLSX = await import('xlsx');
+    
+    const data = filteredAppointments.value.map(appointment => ({
+      'Patient Name': appointment.patientName,
+      'Email': appointment.userEmail,
+      'Date': formatDate(appointment.date),
+      'Time': appointment.time,
+      'Services': appointment.services?.join(', ') || 'No service',
+      'Price': `₱${formatPrice(appointment.price)}`,
+      'Status': 'Approved'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'approved-appointments.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Error exporting to CSV:', err);
+    error.value = 'Failed to export CSV file. Please try again.';
+  }
 };
 
 onMounted(() => {
@@ -356,7 +500,7 @@ onMounted(() => {
 }
 
 .adminlist-stat-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #9f7aea;
 }
@@ -370,6 +514,15 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .section-title {
@@ -407,13 +560,14 @@ onMounted(() => {
   background: #8b5cf6;
 }
 
-.appointments-table {
+.adminappointments-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  background: white;
 }
 
-.appointments-table th {
+.adminappointments-table th {
   background-color: #8b5cf6;
   color: white;
   font-weight: 600;
@@ -424,23 +578,29 @@ onMounted(() => {
   top: 0;
   z-index: 10;
   font-size: 0.875rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.67);
 }
 
-.appointments-table tbody tr:hover {
-  background-color: #f3e8ff;
+.adminappointments-table tbody tr:hover {
+  background-color: #f8fafc;
 }
 
-.appointments-table th:first-child {
+.adminappointments-table th:first-child {
   border-top-left-radius: 8px;
 }
 
-.appointments-table th:last-child {
-  border-top-right-radius: 8px;
+.adminappointments-table th:last-child {
+  border-right: none;
 }
 
-.appointments-table td {
-  padding: 0.5rem;
+.adminappointments-table td:last-child {
+  border-right: none;
+}
+
+.adminappointments-table td {
+  padding: 0.75rem;
   border-bottom: 1px solid #edf2f7;
+  border-right: 1px solid #edf2f7;
   color: #2d3748;
   font-size: 0.75rem;
 }
@@ -503,6 +663,96 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+  max-width: 200px;
+}
+
+.truncate-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.tooltip {
+  visibility: hidden;
+  position: absolute;
+  z-index: 100;
+  background: #32276e;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  width: max-content;
+  max-width: 300px;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tooltip-container:hover .tooltip {
+  visibility: visible;
+}
+
+.services-cell {
+  position: relative;
+}
+
+.group:hover .group-hover\:block {
+  display: block;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.additional-services {
+  color: #a0aec0;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+.services-tooltip-header {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+}
+
+.services-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: #718096;
+  padding: 0.25rem 0;
+}
+
+.service-bullet {
+  width: 0.375rem;
+  height: 0.375rem;
+  background-color: #9f7aea;
+  border-radius: 9999px;
+  margin-right: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .admin-appointments-list {
     padding: 0.75rem;
@@ -527,5 +777,75 @@ onMounted(() => {
   width: 1rem;
   height: 1rem;
   margin-right: 0.25rem;
+}
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-button:hover {
+  background-color: #7c3aed;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 50;
+  min-width: 12rem;
+}
+
+.dropdown-menu.show {
+  display: block;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #374151;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropdown-item:hover {
+  background-color: #f3f4f6;
+  color: #7c3aed;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

@@ -83,6 +83,8 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Mail, Lock, ArrowLeft } from 'lucide-vue-next';
 import { login, resetPassword } from '../services/authService';
+import { doc, getDoc } from 'firebase/firestore';
+import { database } from '../firebase';
 
 const email = ref('');
 const password = ref('');
@@ -101,23 +103,56 @@ const displayPopup = (msg, error = false, duration = 3000) => {
   }, duration);
 };
 
+// Strict admin verification
+const verifyAdminStatus = async (userId) => {
+  try {
+    const userDoc = await getDoc(doc(database, 'users', userId));
+    
+    if (!userDoc.exists()) return false;
+    
+    const userData = userDoc.data();
+    // Check if email matches admin email from env and role is admin
+    return userData.email === 'mejicomdclinic@gmail.com' && userData.role === 'admin';
+  } catch (error) {
+    console.error('Error verifying admin status:', error);
+    return false;
+  }
+};
+
 const handleLogin = async () => {
   try {
     isLoading.value = true;
-    const { user, role } = await login(email.value, password.value);
     
-    if (user.emailVerified) {
-      displayPopup('Login successful', false);
-      setTimeout(() => {
-        if (role === 'admin') {
-          router.push('/admin-dashboard');
-        } else {
-          router.push('/home');
-        }
-      }, 1500);
-    } else {
+    // First verify if this is the admin email
+    const isAdminEmail = email.value === 'mejicomdclinic@gmail.com';
+    
+    const { user } = await login(email.value, password.value);
+    
+    if (!user.emailVerified) {
       displayPopup('Please verify your email before logging in.', true);
+      return;
     }
+
+    // If it's admin email, strictly verify admin status
+    if (isAdminEmail) {
+      const isAdmin = await verifyAdminStatus(user.uid);
+      
+      if (!isAdmin) {
+        displayPopup('Unauthorized access.', true);
+        return;
+      }
+      
+      localStorage.setItem('userRole', 'admin');
+      displayPopup('Admin login successful', false);
+      await router.push('/admin-dashboard');
+      return;
+    }
+
+    // For non-admin users
+    localStorage.setItem('userRole', 'client');
+    displayPopup('Login successful', false);
+    await router.push('/home');
+    
   } catch (err) {
     console.error('Login error:', err);
     displayPopup(err.message || 'Login failed. Please try again.', true);
@@ -126,6 +161,7 @@ const handleLogin = async () => {
   }
 };
 
+// Keep other existing functions unchanged
 const handleResetPassword = async () => {
   if (!email.value) {
     displayPopup('Please enter your email address to reset the password.', true);

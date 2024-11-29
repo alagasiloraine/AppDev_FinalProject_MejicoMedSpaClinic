@@ -428,6 +428,59 @@ const notificationMessage = ref('')
 // Security changes state
 const securityChanges = ref([])
 
+// Modified fetchSecurityChanges function with better error handling
+const fetchSecurityChanges = async () => {
+  try {
+    if (!auth.currentUser) {
+      console.log('No authenticated user')
+      securityChanges.value = []
+      return
+    }
+
+    // Create a reference to the specific document for this user's changes
+    const changesRef = doc(database, 'security_changes', auth.currentUser.uid)
+    
+    // Fetch the document with error handling
+    try {
+      const changesDoc = await getDoc(changesRef)
+      
+      if (changesDoc.exists()) {
+        const changes = changesDoc.data().changes || []
+        // Sort by timestamp in descending order (newest first)
+        securityChanges.value = changes.sort((a, b) => b.timestamp - a.timestamp)
+      } else {
+        // Initialize the document with an empty changes array
+        await setDoc(changesRef, { changes: [] })
+        securityChanges.value = []
+      }
+    } catch (error) {
+      console.error('Error fetching security changes:', error)
+      if (error.code === 'permission-denied') {
+        showPopupNotification('Access denied. Please check your permissions.')
+      }
+      securityChanges.value = []
+    }
+  } catch (error) {
+    console.error('Error in fetchSecurityChanges:', error)
+    securityChanges.value = []
+  }
+}
+
+// Call fetchSecurityChanges when component mounts and after any security change
+onMounted(() => {
+  fetchSecurityChanges()
+})
+
+// Add a watch effect to refresh security changes when auth state changes
+watch(() => auth.currentUser, (newUser) => {
+  if (newUser) {
+    fetchSecurityChanges()
+  } else {
+    securityChanges.value = []
+  }
+})
+
+
 // Fetch user data on mount
 onMounted(async () => {
   if (auth.currentUser) {
@@ -435,22 +488,24 @@ onMounted(async () => {
     if (userDoc.exists()) {
       currentEmail.value = userDoc.data().email
       // Load changes history if it exists
-      const historyDoc = await getDoc(doc(database, 'security_changes', auth.currentUser.uid))
-      if (historyDoc.exists()) {
-        securityChanges.value = historyDoc.data().changes || []
-      }
+      //This section is removed because we are now fetching the changes using fetchSecurityChanges
+      // const historyDoc = await getDoc(doc(database, 'security_changes', auth.currentUser.uid))
+      // if (historyDoc.exists()) {
+      //   securityChanges.value = historyDoc.data().changes || []
+      // }
     }
   }
 })
 
 // Save changes history to database whenever it updates
-watch(securityChanges, async (newChanges) => {
-  if (auth.currentUser) {
-    await setDoc(doc(database, 'security_changes', auth.currentUser.uid), {
-      changes: newChanges
-    })
-  }
-}, { deep: true })
+//This section is removed because we are now updating the changes using addChangeToHistory
+// watch(securityChanges, async (newChanges) => {
+//   if (auth.currentUser) {
+//     await setDoc(doc(database, 'security_changes', auth.currentUser.uid), {
+//       changes: newChanges
+//     })
+//   }
+// }, { deep: true })
 
 // Password validation
 const hasMinLength = computed(() => newPassword.value.length >= 8)
@@ -761,21 +816,34 @@ const formatDate = (timestamp) => {
 
 // First, modify the addChangeToHistory function to properly store timestamps
 const addChangeToHistory = async (change) => {
-  const location = await getCurrentLocation()
-  const timestamp = new Date().getTime() // Store as milliseconds timestamp
-  
-  securityChanges.value.unshift({
-    id: Date.now(),
-    ...change,
-    timestamp,
-    location
-  })
+  try {
+    const location = await getCurrentLocation()
+    const timestamp = new Date().getTime()
+    
+    const newChange = {
+      id: timestamp.toString(),
+      ...change,
+      timestamp,
+      location
+    }
 
-  // Save to database
-  if (auth.currentUser) {
-    await setDoc(doc(database, 'security_changes', auth.currentUser.uid), {
-      changes: securityChanges.value
+    // Get current changes first
+    const changesRef = doc(database, 'security_changes', auth.currentUser.uid)
+    const changesDoc = await getDoc(changesRef)
+    const currentChanges = changesDoc.exists() ? changesDoc.data().changes || [] : []
+
+    // Add new change to the beginning of the array
+    const updatedChanges = [newChange, ...currentChanges]
+
+    // Update Firestore
+    await setDoc(changesRef, {
+      changes: updatedChanges
     })
+
+    // Update local state
+    securityChanges.value = updatedChanges
+  } catch (error) {
+    console.error('Error adding change to history:', error)
   }
 }
 

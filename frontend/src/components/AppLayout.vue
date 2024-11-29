@@ -1,83 +1,5 @@
-<script setup>
-import { ref } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebase';
-import { 
-  ChevronDownIcon, 
-  ChevronUpIcon,
-  LayoutDashboardIcon,
-  UsersIcon,
-  CalendarIcon,
-  StethoscopeIcon,
-  PackageIcon,
-  LogOutIcon
-} from 'lucide-vue-next';
-
-const router = useRouter();
-const route = useRoute();
-const openSubmenus = ref({});
-
-const toggleSubmenu = (routeName) => {
-  openSubmenus.value[routeName] = !openSubmenus.value[routeName];
-};
-
-const logout = async () => {
-  try {
-    await signOut(auth);
-    console.log('User logged out');
-    router.push('/landing');
-  } catch (error) {
-    console.error('Error logging out:', error);
-  }
-};
-
-const routes = [
-  { 
-    path: '/admin-dashboard', 
-    name: 'Dashboard', 
-    icon: LayoutDashboardIcon
-  },
-  { 
-    name: 'Client Management',
-    icon: UsersIcon,
-    submenu: [
-      { path: '/admin/profiles', name: 'Client Profiles' },
-      { path: '/admin/clients', name: 'Treatment Records' },
-    ]
-  },
-  { 
-    name: 'Appointment Management',
-    icon: CalendarIcon,
-    submenu: [
-      { path: '/admin/appointmentlists', name: 'Approved Appointments' },
-      { path: '/admin/calendar', name: 'View Calendar' },
-      { path: '/admin/appointments', name: 'Schedule Management' },
-    ]
-  },
-  { 
-    name: 'Services & Treatments',
-    icon: StethoscopeIcon,
-    submenu: [
-      { path: '/admin/services', name: 'Service Management' },
-      { path: '/admin/treatments', name: 'Treatment Management' },
-      { path: '/admin/treatmentlists', name: 'Treatment Packages' },
-    ]
-  },
-  { 
-    name: 'Inventory & Products',
-    icon: PackageIcon,
-    submenu: [
-      { path: '/admin/products', name: 'Product Lists' },
-      { path: '/admin/productmanage', name: 'Product Management' },
-      { path: '/admin/inventory', name: 'Inventory Management' },
-    ]
-  },
-];
-</script>
-
 <template>
-  <div class="app-container">
+  <div v-if="isAdmin" class="app-container">
     <div class="sidebar-wrapper">
       <div class="sidebar">
         <!-- Logo -->
@@ -90,14 +12,14 @@ const routes = [
             />
             <div class="logo-text">
               <h1>Mejico MedSpa</h1>
-              <span>Healthcare Management System</span>
+              <span>Admin Dashboard</span>
             </div>
           </div>
         </div>
 
         <!-- Main Menu Section -->
         <div class="menu-section">
-          <span class="menu-label">MAIN MENU</span>
+          <span class="menu-label">ADMIN MENU</span>
           
           <nav class="nav-section">
             <div class="nav-container">
@@ -106,7 +28,10 @@ const routes = [
                   <div
                     @click="toggleSubmenu(route.name)"
                     class="menu-item"
-                    :class="{ 'active': openSubmenus[route.name] }"
+                    :class="{ 
+                      'active': openSubmenus[route.name],
+                      'parent-active': isSubmenuActive(route.submenu)
+                    }"
                   >
                     <div class="menu-content">
                       <div class="icon-wrapper">
@@ -133,24 +58,30 @@ const routes = [
                       class="submenu"
                     >
                       <div class="submenu-wrapper">
-                        <router-link
+                        <a
                           v-for="(subItem, subIndex) in route.submenu"
                           :key="subIndex"
-                          :to="subItem.path"
+                          href="#"
+                          @click.prevent="handleNavigation(subItem.path)"
                           class="submenu-item"
+                          :class="{ 
+                            'active': $route.path === subItem.path,
+                            'parent-active': $route.path.includes(subItem.path)
+                          }"
                         >
                           <div class="submenu-indicator">
                             <div class="submenu-dot"></div>
                           </div>
                           <span>{{ subItem.name }}</span>
-                        </router-link>
+                        </a>
                       </div>
                     </div>
                   </transition>
                 </div>
-                <router-link
+                <a
                   v-else
-                  :to="route.path"
+                  href="#"
+                  @click.prevent="handleNavigation(route.path)"
                   class="menu-item"
                   :class="{ 'active': $route.path === route.path }"
                 >
@@ -160,7 +91,7 @@ const routes = [
                     </div>
                     <span>{{ route.name }}</span>
                   </div>
-                </router-link>
+                </a>
               </div>
             </div>
           </nav>
@@ -184,6 +115,138 @@ const routes = [
     </div>
   </div>
 </template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth, database } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { 
+  ChevronDownIcon, 
+  ChevronUpIcon,
+  LayoutDashboardIcon,
+  UsersIcon,
+  CalendarIcon,
+  StethoscopeIcon,
+  PackageIcon,
+  LogOutIcon
+} from 'lucide-vue-next';
+
+const router = useRouter();
+const route = useRoute();
+const openSubmenus = ref({});
+const isAdmin = ref(false);
+
+// Check admin status
+const checkAdminStatus = async (user) => {
+  if (!user) {
+    isAdmin.value = false;
+    router.push('/landing');
+    return;
+  }
+
+  try {
+    const userDoc = await getDoc(doc(database, 'users', user.uid));
+    if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+      isAdmin.value = false;
+      router.push('/landing');
+      return;
+    }
+    isAdmin.value = true;
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    isAdmin.value = false;
+    router.push('/landing');
+  }
+};
+
+// Setup auth listener
+onMounted(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    await checkAdminStatus(user);
+  });
+
+  // Cleanup on component unmount
+  return () => unsubscribe();
+});
+
+const toggleSubmenu = (routeName) => {
+  if (!isAdmin.value) return;
+  openSubmenus.value[routeName] = !openSubmenus.value[routeName];
+};
+
+const logout = async () => {
+  try {
+    await signOut(auth);
+    console.log('User logged out');
+    router.push('/landing');
+  } catch (error) {
+    console.error('Error logging out:', error);
+  }
+};
+
+// Guard navigation
+const handleNavigation = (path) => {
+  if (!isAdmin.value) {
+    console.error('Unauthorized access attempt');
+    return;
+  }
+  router.push(path);
+};
+
+const isSubmenuActive = (submenu) => {
+  return submenu.some(item => route.path.includes(item.path));
+};
+
+const routes = [
+  { 
+    path: '/admin-dashboard', 
+    name: 'Dashboard', 
+    icon: LayoutDashboardIcon,
+    adminOnly: true
+  },
+  { 
+    name: 'Client Management',
+    icon: UsersIcon,
+    adminOnly: true,
+    submenu: [
+      { path: '/admin/profiles', name: 'Client Profiles' },
+      { path: '/admin/clients', name: 'Treatment Records' },
+    ]
+  },
+  { 
+    name: 'Appointment Management',
+    icon: CalendarIcon,
+    adminOnly: true,
+    submenu: [
+      { path: '/admin/appointmentlists', name: 'Approved Appointments' },
+      { path: '/admin/calendar', name: 'View Calendar' },
+      { path: '/admin/appointments', name: 'Schedule Management' },
+    ]
+  },
+  { 
+    name: 'Services & Treatments',
+    icon: StethoscopeIcon,
+    adminOnly: true,
+    submenu: [
+      { path: '/admin/services', name: 'Service Management' },
+      { path: '/admin/treatments', name: 'Treatment Management' },
+      { path: '/admin/treatmentlists', name: 'Treatment Packages' },
+    ]
+  },
+  { 
+    name: 'Inventory & Products',
+    icon: PackageIcon,
+    adminOnly: true,
+    submenu: [
+      { path: '/admin/products', name: 'Product Lists' },
+      { path: '/admin/productmanage', name: 'Product Management' },
+      { path: '/admin/inventory', name: 'Inventory' },
+    ]
+  },
+];
+</script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
@@ -278,7 +341,7 @@ const routes = [
   padding: 0.75rem 1rem;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   text-decoration: none;
   border-radius: 10px;
   font-size: 0.9375rem;
@@ -287,12 +350,9 @@ const routes = [
   gap: 8px;
 }
 
-.menu-item:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.menu-item.active {
+.menu-item:hover,
+.menu-item.active,
+.menu-item.parent-active {
   color: white;
   background: rgba(255, 255, 255, 0.1);
 }
@@ -320,14 +380,12 @@ const routes = [
   height: 32px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
-.menu-item:hover .icon-wrapper {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.menu-item.active .icon-wrapper {
+.menu-item:hover .icon-wrapper,
+.menu-item.active .icon-wrapper,
+.menu-item.parent-active .icon-wrapper {
   background: rgba(255, 255, 255, 0.15);
 }
 
@@ -335,7 +393,7 @@ const routes = [
   width: 18px;
   height: 18px;
   color: white;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .chevron {
@@ -347,13 +405,15 @@ const routes = [
   margin-left: 4px;
 }
 
-.menu-item:hover .chevron {
+.menu-item:hover .chevron,
+.menu-item.active .chevron,
+.menu-item.parent-active .chevron {
   color: white;
 }
 
-.menu-item.active .chevron {
+.menu-item.active .chevron,
+.menu-item.parent-active .chevron {
   transform: rotate(180deg);
-  color: white;
 }
 
 .submenu {
@@ -392,10 +452,19 @@ const routes = [
   text-decoration: none;
   font-size: 0.875rem;
   border-radius: 8px;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   margin: 2px 0;
   white-space: nowrap;
   width: 100%;
+  position: relative;
+}
+
+.submenu-item:hover,
+.submenu-item.active,
+.submenu-item.parent-active {
+  color: white;
+  background: rgba(255, 255, 255, 0.12);
+  padding-left: 1.25rem;
 }
 
 .submenu-indicator {
@@ -411,28 +480,26 @@ const routes = [
   height: 6px;
   background-color: rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
-.submenu-item:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.08);
-  padding-left: 1.25rem;
-}
-
-.submenu-item:hover .submenu-dot {
+.submenu-item:hover .submenu-dot,
+.submenu-item.active .submenu-dot,
+.submenu-item.parent-active .submenu-dot {
   background-color: white;
   transform: scale(1.2);
 }
 
-.submenu-item.router-link-active {
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.submenu-item.router-link-active .submenu-dot {
-  background-color: white;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+.submenu-item.active::before,
+.submenu-item.parent-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: white;
+  border-radius: 0 4px 4px 0;
 }
 
 .logout-section {
@@ -452,7 +519,7 @@ const routes = [
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   font-family: 'Poppins', sans-serif;
   font-size: 0.9375rem;
 }

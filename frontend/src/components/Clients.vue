@@ -27,8 +27,13 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="loading">
-      <p>Loading...</p>
+    <div v-if="loading" class="loading-state">
+      <div class="spinner-container">
+        <div class="spinner">
+          <div class="spinner-line" v-for="n in 8" :key="n" :style="{ transform: `rotate(${(n-1) * 45}deg)` }"></div>
+        </div>
+      </div>
+      <p class="loading-text">Loading clients treatments...</p>
     </div>
 
     <!-- Overview Tab -->
@@ -89,20 +94,37 @@
     <!-- Client List Tab -->
     <div v-else class="client-list">
       <div class="list-header">
-        <div class="search-container">
-          <input 
-            type="text" 
-            placeholder="Search clients..." 
-            class="search-input"
-          >
-          <Search class="search-icon" />
+        <div class="adminprodmanage-search-controls">
+          <div class="adminprodmanage-search-wrapper">
+            <Search class="adminprodmanage-search-icon" />
+            <input 
+              v-model="searchClient" 
+              type="text" 
+              placeholder="Search clients..." 
+              class="adminprodmanage-search-input"
+            >
+          </div>
+          <div class="adminprodmanage-search-wrapper">
+            <Filter class="adminprodmanage-search-icon" />
+            <select 
+              v-model="selectedStatus" 
+              class="adminprodmanage-select"
+            >
+              <option value="">Filter by status</option>
+              <option value="approved">Approved</option>
+              <option value="pending">Pending</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <button @click="applyFilters" class="adminprodmanage-btn adminprodmanage-btn-primary">
+            <Filter class="adminprodmanage-btn-icon" />
+            Search
+          </button>
+          <button @click="resetFilters" class="adminprodmanage-btn adminprodmanage-btn-secondary">
+            <RotateCcw class="adminprodmanage-btn-icon" />
+            Reset
+          </button>
         </div>
-        <select class="filter-select">
-          <option>Filter by status</option>
-          <option>Approved</option>
-          <option>Pending</option>
-          <option>Cancelled</option>
-        </select>
       </div>
 
       <table class="client-table">
@@ -146,69 +168,94 @@
       </table>
     </div>
 
-    <!-- Client Details Modal -->
+    <!-- Enhanced Client Details Modal -->
     <div v-if="selectedClient" class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h3 class="modal-title">
-            Client Details: 
+      <div class="modal custom-scrollbar">
+        <header class="modal-header">
+          <div class="modal-title-wrapper">
+            <h3 class="modal-title">Client Details</h3>
             <span class="client-name">{{ selectedClient.firstName }} {{ selectedClient.lastName }}</span>
-          </h3>
-          <button @click="selectedClient = null" class="close-btn">
+          </div>
+          <button @click="selectedClient = null" class="close-btn" aria-label="Close modal">
             <X class="close-icon" />
           </button>
-        </div>
+        </header>
 
-        <div class="client-details">
-          <div class="detail-item">
-            <p class="detail-label">Email</p>
-            <p class="detail-value">{{ selectedClient.email }}</p>
+        <div class="modal-content">
+          <div class="client-details">
+            <div class="detail-card">
+              <Mail class="detail-icon" />
+              <div class="detail-info">
+                <p class="detail-label">Email</p>
+                <p class="detail-value">{{ selectedClient.email }}</p>
+              </div>
+            </div>
+            
+            <div class="detail-card">
+              <Phone class="detail-icon" />
+              <div class="detail-info">
+                <p class="detail-label">Phone</p>
+                <p class="detail-value">{{ selectedClient.phone || 'N/A' }}</p>
+              </div>
+            </div>
+            
+            <div class="detail-card">
+              <Calendar class="detail-icon" />
+              <div class="detail-info">
+                <p class="detail-label">Total Appointments</p>
+                <p class="detail-value">{{ selectedClient.appointments.length }}</p>
+              </div>
+            </div>
+            
+            <div class="detail-card">
+              <Clock class="detail-icon" />
+              <div class="detail-info">
+                <p class="detail-label">Last Visit</p>
+                <p class="detail-value">{{ formatDate(selectedClient.lastVisit) }}</p>
+              </div>
+            </div>
           </div>
-          <div class="detail-item">
-            <p class="detail-label">Phone</p>
-            <p class="detail-value">{{ selectedClient.phone || 'N/A' }}</p>
-          </div>
-          <div class="detail-item">
-            <p class="detail-label">Total Appointments</p>
-            <p class="detail-value">{{ selectedClient.appointments.length }}</p>
-          </div>
-          <div class="detail-item">
-            <p class="detail-label">Last Visit</p>
-            <p class="detail-value">{{ formatDate(selectedClient.lastVisit) }}</p>
-          </div>
-        </div>
 
-        <div class="appointment-history">
-          <h4 class="appointment-history-title">Appointment History</h4>
-          <div class="appointment-table-wrapper">
-            <table class="appointment-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Treatment</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="appointment in selectedClient.appointments" :key="appointment.id">
-                  <td>
-                    <span class="date-cell">{{ formatDate(appointment.date) }}</span>
-                  </td>
-                  <td>
-                    <span class="time-cell">{{ appointment.time }}</span>
-                  </td>
-                  <td>
-                    <span class="treatment-cell">{{ appointment.service }}</span>
-                  </td>
-                  <td>
-                    <span :class="['status-badge', appointment.status]">
-                      {{ appointment.status }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="appointment-history">
+            <div class="section-header">
+              <h4 class="section-title">Appointment History</h4>
+              <div class="appointment-count">
+                {{ selectedClient.appointments.length }} appointments
+              </div>
+            </div>
+            
+            <div class="appointment-table-wrapper custom-scrollbar">
+              <table class="appointment-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Services</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="appointment in selectedClient.appointments" :key="appointment.id">
+                    <td>
+                      <span class="date-cell">{{ formatDate(appointment.date) }}</span>
+                    </td>
+                    <td>
+                      <span class="time-cell">{{ appointment.time }}</span>
+                    </td>
+                    <td>
+                      <span class="treatment-cell">
+                        {{ appointment.services.join(', ') }}
+                      </span>
+                    </td>
+                    <td>
+                      <span :class="['status-badge', appointment.status]">
+                        {{ appointment.status }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -220,13 +267,17 @@
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
-import { Eye, Users, Calendar, Clock, Search, Mail, Phone, X } from 'lucide-vue-next';
+import { Eye, Users, Calendar, Clock, Search, Mail, Phone, X, Filter, RotateCcw } from 'lucide-vue-next';
 
 const clients = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const selectedClient = ref(null);
 const activeTab = ref('overview');
+const searchClient = ref('');
+const selectedStatus = ref('');
+const treatments = ref([]);
+const services = ref([]);
 
 // Computed properties for overview stats
 const totalAppointments = computed(() => {
@@ -246,11 +297,24 @@ const recentClients = computed(() => {
     .slice(0, 5);
 });
 
-// Existing functions
 const fetchClientsAndAppointments = async () => {
   loading.value = true;
   error.value = null;
   try {
+    // Fetch treatments
+    const treatmentsSnapshot = await getDocs(collection(database, 'treatments'));
+    treatments.value = treatmentsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Fetch services
+    const servicesSnapshot = await getDocs(collection(database, 'services'));
+    services.value = servicesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
     const usersSnapshot = await getDocs(collection(database, 'users'));
     const usersData = usersSnapshot.docs.map(doc => ({
       id: doc.id,
@@ -266,6 +330,7 @@ const fetchClientsAndAppointments = async () => {
         id: doc.id,
         ...doc.data(),
         date: doc.data().date instanceof Timestamp ? doc.data().date : Timestamp.fromDate(new Date(doc.data().date)),
+        services: doc.data().services || []
       };
 
       const clientIndex = usersData.findIndex(user => user.id === appointment.userId);
@@ -304,6 +369,15 @@ const formatDate = (date) => {
 
 const viewAppointments = (client) => {
   selectedClient.value = client;
+};
+
+const applyFilters = () => {
+  // Implement your filter logic here using searchClient and selectedStatus
+};
+
+const resetFilters = () => {
+  searchClient.value = '';
+  selectedStatus.value = '';
 };
 
 onMounted(() => {
@@ -404,7 +478,7 @@ onMounted(() => {
 .icon {
   width: 1.5rem;
   height: 1.5rem;
-  color: #8b5cf6; /* Updated icon color */
+  color: #8b5cf6;
 }
 
 .clients-stat-label {
@@ -425,10 +499,10 @@ onMounted(() => {
   padding: 1.5rem;
 }
 
-.section-title {
+.recent-activity h3.section-title {
   font-size: 1.125rem;
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem !important;
   color: #382d6e;
 }
 
@@ -465,6 +539,12 @@ onMounted(() => {
 
 .client-name {
   font-weight: 500;
+  color: #000000;
+}
+
+.activity-list .client-name {
+  font-weight: 500;
+  color: #000000 !important;
 }
 
 .client-date {
@@ -592,64 +672,121 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(2px);
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.5rem;
+  z-index: 50;
 }
 
 .modal {
   background-color: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   width: 100%;
-  max-width: 42rem;
+  max-width: 48rem;
   max-height: 90vh;
   overflow-y: auto;
+  transform: translateY(0);
+  animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #f3f4f6;
+  background: linear-gradient(to right, #8B5CF6, #6B46C1);
+  border-radius: 1rem 0 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modal-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .modal-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #000000;
+  color: white;
+  margin: 0;
 }
 
-.modal-title .client-name {
-  color: #6B46C1;
+.client-name {
+  color: #e9d5ff;
+  font-size: 1rem;
 }
 
 .close-btn {
-  background: none;
+  background: rgba(255, 255, 255, 0.1);
   border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .close-icon {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: #6B46C1;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: white;
+}
+
+.modal-content {
+  padding: 2rem;
 }
 
 .client-details {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
-  padding: 1.5rem;
+  margin-bottom: 2rem;
 }
 
-.detail-item {
+.detail-card {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+  background-color: #f8fafc;
+  border-radius: 0.75rem;
+  transition: transform 0.2s;
+}
+
+.detail-card:hover {
+  transform: translateY(-2px);
+}
+
+.detail-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #8B5CF6;
+}
+
+.detail-info {
+  flex: 1;
 }
 
 .detail-label {
@@ -659,48 +796,68 @@ onMounted(() => {
 }
 
 .detail-value {
+  font-size: 1rem;
   font-weight: 500;
+  color: #1f2937;
 }
 
-.appointment-history {
-  padding: 0 1.5rem 1.5rem;
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
 }
 
-.appointment-history-title {
-  font-size: 1.125rem;
+.section-title {
+  font-size: 1.25rem;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid #f3f4f6;
+  margin: 0;
+}
+
+.appointment-count {
+  font-size: 0.875rem;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  padding: 0.375rem 0.75rem;
+  border-radius: 1rem;
 }
 
 .appointment-table-wrapper {
-  background-color: #f9fafb;
-  border-radius: 0.5rem;
+  background-color: #ffffff;
+  border: 1px solid #f3f4f6;
+  border-radius: 0.75rem;
   overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .appointment-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.875rem;
 }
 
 .appointment-table th {
-  background-color: #f3f4f6;
+  background-color: #f8fafc;
   font-weight: 600;
   color: #4b5563;
-  padding: 0.75rem 1rem;
+  padding: 1rem;
   text-align: left;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 1px solid #f3f4f6;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .appointment-table td {
-  padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  background-color: white;
+  padding: 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.875rem;
+}
+
+.appointment-table tr:last-child td {
+  border-bottom: none;
 }
 
 .date-cell {
@@ -710,7 +867,6 @@ onMounted(() => {
 
 .time-cell {
   color: #6b7280;
-  font-weight: 500;
 }
 
 .treatment-cell {
@@ -720,8 +876,8 @@ onMounted(() => {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
+  padding: 0.375rem 0.75rem;
+  border-radius: 1rem;
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: capitalize;
@@ -742,23 +898,157 @@ onMounted(() => {
   color: #991b1b;
 }
 
-.appointment-table tbody tr:hover {
-  background-color: #f8fafc;
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #8B5CF6 #f3f4f6;
 }
 
-@media (max-width: 640px) {
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #8B5CF6;
+  border-radius: 3px;
+  border: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #7C3AED;
+}
+
+.adminprodmanage-search-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.adminprodmanage-search-wrapper {
+  position: relative;
+  width: 450px;
+}
+
+.adminprodmanage-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: #718096;
+}
+
+.adminprodmanage-select,
+.adminprodmanage-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #4a5568;
+  background-color: white;
+  transition: all 0.2s;
+}
+
+.adminprodmanage-btn {
+  white-space: nowrap;
+}
+
+.adminprodmanage-btn-primary {
+  background: linear-gradient(135deg, #9f7aea, #667eea);
+  color: white;
+}
+
+.adminprodmanage-btn-secondary {
+  background-color: #edf2f7;
+  color: #4a5568;
+}
+
+.adminprodmanage-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.adminprodmanage-btn-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+}
+
+/* Updated loading state styles */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  gap: 1rem;
+}
+
+.spinner-container {
+  width: 40px;
+  height: 40px;
+  position: relative;
+}
+
+.spinner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  animation: spin 1s linear infinite;
+}
+
+.spinner-line {
+  position: absolute;
+  width: 2px;
+  height: 8px;
+  background: #7c3aed;
+  border-radius: 1px;
+  left: 50%;
+  top: 0;
+  transform-origin: 50% 20px;
+}
+
+.loading-text {
+  color: #7c3aed;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .adminprodmanage-search-controls {
+    flex-wrap: wrap;
+  }
+  
+  .adminprodmanage-search-wrapper {
+    width: 100%;
+  }
+  .client-details {
+    grid-template-columns: 1fr;
+  }
+  
   .modal {
-    max-width: 100%;
     margin: 1rem;
   }
   
-  .appointment-table {
-    font-size: 0.75rem;
+  .modal-content {
+    padding: 1.5rem;
   }
   
-  .appointment-table td,
-  .appointment-table th {
-    padding: 0.5rem;
+  .appointment-table {
+    font-size: 0.875rem;
   }
 }
 </style>
+

@@ -563,32 +563,52 @@
               </div>
             </div>
 
-            <!-- Treatment History Tab -->
-            <div v-show="currentTab === 'treatment'" class="tab-content">
-              <div class="info-section">
-                <h2 class="section-title flex items-center">
-                  <HistoryIcon class="w-5 h-5 mr-2" />
-                  Treatment History
-                </h2>
-                <div class="treatment-history">
-                  <ul v-if="approvedAppointments.length > 0" class="space-y-3">
-                    <li v-for="appointment in approvedAppointments" :key="appointment.id" class="treatment-item">
-                      <div class="flex justify-between items-start">
-                        <div>
-                          <span class="font-semibold">{{ formatDate(appointment.date) }} at {{ appointment.time }}</span>
-                          <p class="text-sm text-gray-600">Service: {{ appointment.serviceName }}</p>
-                          <p class="text-sm text-gray-600">Treatment: {{ appointment.treatmentName }}</p>
-                          <p v-if="appointment.productName" class="text-sm text-gray-600">Product: {{ appointment.productName }}</p>
+              <!-- Treatment History Tab -->
+              <div v-show="currentTab === 'treatment'" class="tab-content">
+                <div class="info-section">
+                  <h2 class="section-title flex items-center">
+                    <HistoryIcon class="w-5 h-5 mr-2" />
+                    Treatment History
+                  </h2>
+                  <div class="treatment-history-grid">
+                    <div v-for="appointment in pastAppointments" 
+                        :key="appointment.id" 
+                        class="treatment-card">
+                      <div class="treatment-card-content">
+                        <div class="treatment-header">
+                          <h3 class="treatment-services">
+                            {{ formatServices(appointment.services) }}
+                          </h3>
+                          <span :class="[
+                            'status-badge',
+                            appointment.status.toLowerCase() === 'approved' ? 'status-approved' : 'status-pending'
+                          ]">
+                            {{ appointment.status.toUpperCase() }}
+                          </span>
+                        </div>
+                        <div class="treatment-details">
+                          <div class="detail-item">
+                            <CalendarIcon class="w-4 h-4 text-gray-500" />
+                            <span>Date: {{ formatDate(appointment.date) }}</span>
+                          </div>
+                          <div class="detail-item">
+                            <ClockIcon class="w-4 h-4 text-gray-500" />
+                            <span>Time: {{ appointment.time }}</span>
+                          </div>
+                          <div class="detail-item">
+                            <DollarSignIcon class="w-4 h-4 text-gray-500" />
+                            <span>Price: ₱{{ appointment.price }}</span>
+                          </div>
                         </div>
                       </div>
-                    </li>
-                  </ul>
-                  <p v-else class="text-sm text-gray-500 italic">
-                    No approved appointments available.
-                  </p>
+                    </div>
+                    <div v-if="pastAppointments.length === 0" class="no-appointments">
+                      <HistoryIcon class="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <p class="text-gray-500 text-sm">No past appointments found</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
             <!-- Submit Button -->
             <div class="submit-button-container" v-if="isEditMode">
@@ -625,7 +645,7 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase
 import { database } from '../firebase';
 import Navbar from './Navbar.vue';
 import FooterComponent from './Footer.vue';
-import { UserIcon, HistoryIcon, MailIcon, PencilIcon, CalendarIcon } from 'lucide-vue-next';
+import { UserIcon, HistoryIcon, MailIcon, PencilIcon, CalendarIcon, ClockIcon, DollarSignIcon } from 'lucide-vue-next';
 import { User } from 'lucide-vue-next';
 import { CheckIcon, LoaderIcon } from 'lucide-vue-next';
 
@@ -815,50 +835,79 @@ const submitForm = async () => {
   }
 };
 
+// Modified pastAppointments computed property
+const pastAppointments = computed(() => {
+  const currentDate = new Date();
+  return approvedAppointments.value
+    .filter(appointment => {
+      // Ensure we're comparing Date objects
+      const appointmentDate = appointment.date instanceof Date 
+        ? appointment.date 
+        : new Date(appointment.date);
+      return appointmentDate < currentDate;
+    })
+    .sort((a, b) => b.date - a.date); // Sort by date descending
+});
+
 const approvedAppointments = ref([]);
 
-// Function to fetch approved appointments
+// Modify the fetchApprovedAppointments function
 const fetchApprovedAppointments = async (userId) => {
   try {
     const appointmentsRef = collection(database, 'appointments');
     const q = query(
       appointmentsRef,
       where('userId', '==', userId),
-      where('status', '==', 'approved')
+      where('status', 'in', ['approved', 'pending'])
     );
     const querySnapshot = await getDocs(q);
 
     const appointments = [];
     for (const doc of querySnapshot.docs) {
       const appointmentData = doc.data();
+      
+      // Convert Firestore timestamp to Date
+      let appointmentDate;
+      if (appointmentData.date && typeof appointmentData.date.toDate === 'function') {
+        appointmentDate = appointmentData.date.toDate();
+      } else if (appointmentData.date) {
+        appointmentDate = new Date(appointmentData.date);
+      }
 
-      // Fetch service details
-      const serviceDoc = await getDoc(doc(database, 'services', appointmentData.serviceId));
-      const serviceName = serviceDoc.exists() ? serviceDoc.data().name : 'Unknown Service';
-
-      // Fetch treatment details
-      const treatmentDoc = await getDoc(doc(database, 'treatments', appointmentData.treatmentId));
-      const treatmentName = treatmentDoc.exists() ? treatmentDoc.data().name : 'Unknown Treatment';
-
-      appointments.push({
-        id: doc.id,
-        date: appointmentData.date.toDate(),
-        time: appointmentData.time,
-        serviceName,
-        treatmentName,
-        productName: appointmentData.productName || null,
-      });
+      if (appointmentDate) {
+        appointments.push({
+          id: doc.id,
+          date: appointmentDate,
+          time: appointmentData.time || 'No time specified',
+          services: appointmentData.services || [],
+          price: appointmentData.price || 0,
+          status: appointmentData.status || 'pending'
+        });
+      }
     }
 
-    approvedAppointments.value = appointments.sort((a, b) => b.date - a.date);
+    // Sort appointments by date in descending order
+    appointments.sort((a, b) => b.date - a.date);
+    approvedAppointments.value = appointments;
   } catch (error) {
-    console.error("Error fetching approved appointments:", error);
+    console.error("Error fetching appointments:", error);
   }
 };
 
-// Function to format date
+// Add this helper function to format services
+const formatServices = (services) => {
+  if (!services || !Array.isArray(services)) return 'No services';
+  return services.join(', ').toUpperCase();
+};
+
+// Update the formatDate function to match the desired format
 const formatDate = (date) => {
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 };
 
 const memberSince = computed(() => {
@@ -1798,6 +1847,86 @@ const nextPage = () => {
 .step-connector.active {
   background-color: #6656b3;
 }
+
+/* Add these new styles */
+.treatment-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.treatment-card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.2s ease;
+}
+
+.treatment-card:hover {
+  transform: translateY(-2px);
+}
+
+.treatment-card-content {
+  padding: 1rem;
+}
+
+.treatment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.treatment-services {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #4b5563;
+  flex: 1;
+  margin-right: 1rem;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-approved {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-pending {
+  background-color: #fff7ed;
+  color: #9a3412;
+}
+
+.treatment-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.no-appointments {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 2rem;
+  background: white;
+  border-radius: 0.75rem;
+}
+
 
 @keyframes fade-in {
   from {

@@ -238,6 +238,7 @@ const submitForm = async () => {
   min-height: 100vh;
   max-width: 100%;
   margin-top: 80px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ff 100%);
 }
 
 .hero-section {

@@ -142,159 +142,159 @@
       </div>
     </div>
   
-      <!-- Modified Treatment List Modal -->
-      <div v-if="isTreatmentListModalVisible" class="modal-overlay" @click="closeTreatmentListModal">
-        <div class="modal treatment-list-modal" @click.stop>
-          <div class="modal-header">
-            <h3>{{ selectedService?.name }} Services</h3>
-            <button @click="closeTreatmentListModal" class="close-button">
-              <XIcon class="icon" />
-            </button>
+    <!-- Modified Treatment List Modal -->
+    <div v-if="isTreatmentListModalVisible" class="modal-overlay" @click="closeTreatmentListModal">
+      <div class="modal treatment-list-modal" @click.stop>
+        <div class="modal-header">
+          <h3>{{ selectedService?.name }} Services</h3>
+          <button @click="closeTreatmentListModal" class="close-button">
+            <XIcon class="icon" />
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <div v-if="isLoadingTreatments" class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading treatments...</p>
           </div>
           
-          <div class="modal-body">
-            <div v-if="isLoadingTreatments" class="loading-state">
-              <div class="spinner"></div>
-              <p>Loading treatments...</p>
-            </div>
-            
-            <div v-if="!isLoadingTreatments && treatments.length === 0" class="empty-state">
-              <p>No treatments available for this service.</p>
-            </div>
-            
-            <div v-else class="treatments-grid">
-              <div 
-                v-for="treatment in treatments" 
-                :key="treatment.id"
-                class="treatment-card"
-                :class="{ 'selected': selectedTreatments[treatment.id] > 0 }"
-              >
-                <div class="treatment-icon-wrapper">
-                  <component :is="getServiceIcon(selectedService?.name)" class="treatment-icon" />
-                </div>
+          <div v-else-if="!hasTreatments" class="empty-state">
+            <p>No treatments available for {{ selectedService?.name || 'this service' }}.</p>
+          </div>
+          
+          <div v-else class="treatments-grid">
+            <div 
+              v-for="treatment in treatments" 
+              :key="treatment.id"
+              class="treatment-card"
+              :class="{ 'selected': selectedTreatments[treatment.id] > 0 }"
+            >
+              <div class="treatment-icon-wrapper">
+                <component :is="getServiceIcon(selectedService?.name)" class="treatment-icon" />
+              </div>
+              
+              <div class="treatment-content">
+                <h4>{{ treatment.name }}</h4>
+                <p class="treatment-description">{{ treatment.description || 'Experience our professional service.' }}</p>
+                <div class="treatment-price">₱{{ treatment.price.toLocaleString('en-PH') }}</div>
                 
-                <div class="treatment-content">
-                  <h4>{{ treatment.name }}</h4>
-                  <p class="treatment-description">{{ treatment.description || 'Experience our professional service.' }}</p>
-                  <div class="treatment-price">₱{{ treatment.price.toLocaleString('en-PH') }}</div>
-                  
-                  <div v-if="selectedTreatments[treatment.id]" class="quantity-controls">
-                    <button @click.stop="decrementTreatment(treatment)" class="quantity-button">
-                      <MinusIcon class="icon" />
-                    </button>
-                    <span class="quantity">{{ selectedTreatments[treatment.id] }}</span>
-                    <button @click.stop="incrementTreatment(treatment)" class="quantity-button">
-                      <PlusIcon class="icon" />
-                    </button>
-                  </div>
-                </div>
-                
-                <div class="treatment-footer">
-                  <button 
-                    v-if="!selectedTreatments[treatment.id]"
-                    @click.stop="selectTreatment(treatment)" 
-                    class="select-treatment-button"
-                  >
+                <div v-if="selectedTreatments[treatment.id]" class="quantity-controls">
+                  <button @click.stop="decrementTreatment(treatment)" class="quantity-button">
+                    <MinusIcon class="icon" />
+                  </button>
+                  <span class="quantity">{{ selectedTreatments[treatment.id] }}</span>
+                  <button @click.stop="incrementTreatment(treatment)" class="quantity-button">
                     <PlusIcon class="icon" />
-                    Select
                   </button>
                 </div>
               </div>
+              
+              <div class="treatment-footer">
+                <button 
+                  v-if="!selectedTreatments[treatment.id]"
+                  @click.stop="selectTreatment(treatment)" 
+                  class="select-treatment-button"
+                >
+                  <PlusIcon class="icon" />
+                  Select
+                </button>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="modal-actions treatment-modal-actions">
-            <button 
-              @click="confirmTreatmentSelection" 
-              class="confirm-button"
-              :disabled="!hasSelectedTreatments || isConfirmingTreatment"
-            >
-              <template v-if="!isConfirmingTreatment && !isTreatmentConfirmed">
-                Confirm Selection
-              </template>
-              <template v-else-if="isConfirmingTreatment">
-                <div class="confirm-spinner"></div>
-                Confirming...
-              </template>
-              <template v-else>
-                <div class="confirm-success">
-                  <CheckIcon />
-                  Confirmed
-                </div>
-              </template>
-            </button>
-            <button @click="closeTreatmentListModal" class="cancel-button">
-              Cancel
-            </button>
-          </div>
+        <div class="modal-actions treatment-modal-actions">
+          <button 
+            @click="confirmTreatmentSelection" 
+            class="confirm-button"
+            :disabled="!hasSelectedTreatments || isConfirmingTreatment"
+          >
+            <template v-if="!isConfirmingTreatment && !isTreatmentConfirmed">
+              Confirm Selection
+            </template>
+            <template v-else-if="isConfirmingTreatment">
+              <div class="confirm-spinner"></div>
+              Confirming...
+            </template>
+            <template v-else>
+              <div class="confirm-success">
+                <CheckIcon />
+                Confirmed
+              </div>
+            </template>
+          </button>
+          <button @click="closeTreatmentListModal" class="cancel-button">
+            Cancel
+          </button>
         </div>
       </div>
+    </div>
   
     <!-- Summary Modal -->
     <div v-if="isSummaryModalVisible" class="modal-overlay" @click="closeSummaryModal">
-        <div class="modal" @click.stop>
-          <div class="modal-content">
-            <h3 class="summary-title">Appointment Summary</h3>
-            <div class="summary-content-wrapper custom-scrollbar">
-              <div class="summary-content">
-                <!-- Selected Services Section -->
-                <div class="selected-services">
-                  <h4>Selected Services</h4>
-                  <div v-if="hasSelectedServices">
-                    <div v-for="(count, serviceId) in selectedServices" :key="serviceId" class="service-item">
-                      <div class="service-info">
-                        <div class="service-name-duration">
-                          <span class="service-name">{{ getServiceName(serviceId) }}</span>
-                        </div>
-                        <div class="service-details">
-                          <span class="service-quantity">x{{ getServiceQuantity(serviceId) }}</span>
-                          <!-- Display selected treatments under the service -->
-                          <div v-if="selectedTreatmentsForService[serviceId]" class="selected-treatments">
-                            <div v-for="treatment in selectedTreatmentsForService[serviceId]" :key="treatment.id" class="treatment-item">
-                              <span>{{ treatment.name }}</span>
-                              <span class="treatment-quantity">x{{ treatment.quantity }}</span>
-                              <span class="treatment-price">₱{{ (treatment.price * treatment.quantity).toLocaleString('en-PH') }}</span>
-                            </div>
+      <div class="modal" @click.stop>
+        <div class="modal-content">
+          <h3 class="summary-title">Appointment Summary</h3>
+          <div class="summary-content-wrapper custom-scrollbar">
+            <div class="summary-content">
+              <!-- Selected Services Section -->
+              <div class="selected-services">
+                <h4>Selected Services</h4>
+                <div v-if="hasSelectedServices">
+                  <div v-for="(count, serviceId) in selectedServices" :key="serviceId" class="service-item">
+                    <div class="service-info">
+                      <div class="service-name-duration">
+                        <span class="service-name">{{ getServiceName(serviceId) }}</span>
+                      </div>
+                      <div class="service-details">
+                        <span class="service-quantity">x{{ getServiceQuantity(serviceId) }}</span>
+                        <!-- Display selected treatments under the service -->
+                        <div v-if="selectedTreatmentsForService[serviceId]" class="selected-treatments">
+                          <div v-for="treatment in selectedTreatmentsForService[serviceId]" :key="treatment.id" class="treatment-item">
+                            <span>{{ treatment.name }}</span>
+                            <span class="treatment-quantity">x{{ treatment.quantity }}</span>
+                            <span class="treatment-price">₱{{ (treatment.price * treatment.quantity).toLocaleString('en-PH') }}</span>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div v-else class="no-services-message">
-                    No services selected
-                  </div>
                 </div>
-                <div class="summary-divider"></div>
-                <div class="summary-totals">
-                  <div class="total-row">
-                    <span>Total Price:</span>
-                    <span class="highlight price-highlight">₱{{ totalPrice.toLocaleString('en-PH') }}</span>
-                  </div>
+                <div v-else class="no-services-message">
+                  No services selected
                 </div>
-                <div class="summary-divider"></div>
-                <div class="appointment-details">
-                  <div class="detail-row">
-                    <span class="label">Date:</span>
-                    <span>{{ formattedDate }}</span>
-                  </div>
-                  <div class="detail-row">
-                    <span class="label">Time:</span>
-                    <span>{{ selectedTime }}</span>
-                  </div>
+              </div>
+              <div class="summary-divider"></div>
+              <div class="summary-totals">
+                <div class="total-row">
+                  <span>Total Price:</span>
+                  <span class="highlight price-highlight">₱{{ totalPrice.toLocaleString('en-PH') }}</span>
+                </div>
+              </div>
+              <div class="summary-divider"></div>
+              <div class="appointment-details">
+                <div class="detail-row">
+                  <span class="label">Date:</span>
+                  <span>{{ formattedDate }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Time:</span>
+                  <span>{{ selectedTime }}</span>
                 </div>
               </div>
             </div>
-            <div class="modal-actions">
-              <button @click="confirmAppointment" class="confirm-button">
-                <CheckIcon class="icon" /> Confirm
-              </button>
-              <button @click="closeSummaryModal" class="cancel-button">
-                <XIcon class="icon" /> Cancel
-              </button>
-            </div>
+          </div>
+          <div class="modal-actions">
+            <button @click="confirmAppointment" class="confirm-button">
+              <CheckIcon class="icon" /> Confirm
+            </button>
+            <button @click="closeSummaryModal" class="cancel-button">
+              <XIcon class="icon" /> Cancel
+            </button>
           </div>
         </div>
       </div>
+    </div>
   
     <!-- Confirmation Modal -->
     <div v-if="isConfirmationModalVisible" class="modal-overlay" @click.self="isConfirmationModalVisible = false">
@@ -846,11 +846,28 @@ const fetchTreatments = async (service) => {
   try {
     isLoadingTreatments.value = true;
     const treatmentsCollection = collection(database, 'treatments');
-    const q = query(treatmentsCollection, where('services', '==', service.name));
+    // Modified query to use service ID instead of name
+    const q = query(treatmentsCollection, where('services', '==', service.id));
     const treatmentSnapshot = await getDocs(q);
-    treatments.value = treatmentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Map the treatments and add error handling
+    treatments.value = treatmentSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || 'Unnamed Treatment',
+        description: data.description || 'No description available',
+        price: data.price || 0,
+        services: data.services || []
+      };
+    });
+
+    // Log for debugging
+    console.log(`Fetched ${treatments.value.length} treatments for service:`, service.name);
+    
   } catch (error) {
     console.error('Error fetching treatments:', error);
+    treatments.value = []; // Reset on error
   } finally {
     isLoadingTreatments.value = false;
     loadingTreatments.value = false;
@@ -858,11 +875,21 @@ const fetchTreatments = async (service) => {
 };
 
 const showTreatmentList = async (service) => {
-  console.log('Showing treatment list for service:', JSON.stringify(service, null, 2));
+  console.log('Showing treatment list for service:', service);
+  
+  // Ensure we have a valid service object
+  if (!service || !service.id) {
+    console.error('Invalid service object:', service);
+    return;
+  }
+  
   selectedService.value = service;
   isTreatmentListModalVisible.value = true;
+  
+  // Fetch treatments for this service
   await fetchTreatments(service);
   
+  // Restore any previously selected treatments for this service
   if (selectedTreatmentsHistory.value[service.id]) {
     const previousSelections = selectedTreatmentsHistory.value[service.id];
     const { quantity, total, ...treatmentSelections } = previousSelections;
@@ -996,6 +1023,11 @@ const handleNavigation = async () => {
   // Stay on the current route if user is authenticated
   await fetchAppointments();
 };
+
+// New computed property to check if treatments are available
+const hasTreatments = computed(() => {
+  return treatments.value && treatments.value.length > 0;
+});
 
 onMounted(() => {
   const unsubscribe = fetchServices();

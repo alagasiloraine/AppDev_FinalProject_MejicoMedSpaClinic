@@ -29,6 +29,8 @@
 import { ref } from 'vue';
 import FooterComponent from './Footer.vue';
 import Navbar from './Navbar.vue'; 
+import Carousel from './Carousel.vue'
+import LandingAbout from './LandingAbout.vue'
 import { UserCircle, LogIn, UserPlus, X } from 'lucide-vue-next';
 
 const showModal = ref(false);
