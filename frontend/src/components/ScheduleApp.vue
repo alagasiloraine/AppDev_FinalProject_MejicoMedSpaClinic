@@ -114,7 +114,6 @@
     import { ref, computed, onMounted, watch } from 'vue';
     import { collection, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore';
     import { database } from '../firebase';
-    import VueCal from 'vue-cal';
     import VDatePicker from '@vuepic/vue-datepicker';
     import '@vuepic/vue-datepicker/dist/main.css';
     import blogImage from '../assets/images/logo.png';
