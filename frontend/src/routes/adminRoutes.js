@@ -10,6 +10,8 @@ import AdminAppointments from '../components/AdminAppointments.vue';
 import AdminCalendar from '../components/AdminCalendar.vue';
 import AdminProductManage from '../components/AdminProductManage.vue';
 import AdminAppointmentLists from '../components/AdminAppointmentLists.vue';
+import AdminSalesPredictions from '../components/AdminSalesPredictions.vue';
+import AdminStockPredictions from '../components/AdminStockPredictions.vue';
 
 const adminMeta = { requiresAuth: true, requiresAdmin: true };
 
@@ -84,6 +86,18 @@ export const adminRoutes = [
     path: '/admin/appointmentlists', 
     name: 'AdminAppointmentLists',
     component: AdminAppointmentLists, 
+    meta: adminMeta 
+  },
+  { 
+    path: '/admin/sales-predictions', 
+    name: 'AdminSalesPredictions',
+    component: AdminSalesPredictions, 
+    meta: adminMeta 
+  },
+  { 
+    path: '/admin/stock-predictions', 
+    name: 'AdminStockPredictions',
+    component: AdminStockPredictions, 
     meta: adminMeta 
   }
 ];

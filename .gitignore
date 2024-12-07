@@ -1,1 +1,5 @@
 backend/config/serviceAccountKey.json
+
+# Ignore uploaded files but keep the directory
+frontend/public/uploads/*
+!frontend/public/uploads/.gitkeep

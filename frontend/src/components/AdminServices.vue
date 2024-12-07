@@ -55,13 +55,29 @@
 
     <div class="adminservice-services-table">
       <div class="adminservice-table-header">
+        <div class="adminservice-service-image">Image</div>
         <div class="adminservice-service-name">Service Name</div>
         <div class="adminservice-duration">Duration</div>
         <div class="adminservice-actions">Actions</div>
       </div>
       
-      <div v-if="filteredServices.length > 0" class="adminservice-table-body">
-        <div v-for="service in filteredServices" :key="service.id" class="adminservice-table-row">
+      <div v-if="loading" class="adminservice-loading-state">
+        <div class="adminservice-spinner"></div>
+        <p class="adminservice-loading-text">Loading packages...</p>
+      </div>
+      <div v-else-if="filteredServices.length > 0" class="adminservice-table-body">
+        <div v-for="service in paginatedServices" :key="service.id" class="adminservice-table-row">
+          <div class="adminservice-service-image">
+            <img 
+              v-if="service.imagePath" 
+              :src="service.imagePath" 
+              alt="Service image"
+              class="adminservice-table-image"
+            />
+            <div v-else class="adminservice-no-image">
+              <ImageIcon size="24" class="adminservice-placeholder-icon" />
+            </div>
+          </div>
           <div class="adminservice-service-name">{{ service.name }}</div>
           <div class="adminservice-duration">{{ service.duration }} min</div>
           <div class="adminservice-actions">
@@ -88,13 +104,13 @@
           </div>
         </div>
       </div>
-      <div v-else class="adminservice-no-services">
+      <div v-else-if="filteredServices.length === 0" class="adminservice-no-services">
         {{ showArchived ? 'No archived services found.' : 'No active services found.' }}
       </div>
     </div>
 
     <div class="adminservice-pagination">
-      <span>Showing {{ filteredServices.length }} of {{ totalServices }} services</span>
+      <span>Showing {{ paginatedServices.length }} of {{ totalServices }} services</span>
       <div class="adminservice-pagination-buttons">
         <button 
           @click="prevPage" 
@@ -113,7 +129,6 @@
       </div>
     </div>
 
-    <!-- Enhanced Modal -->
     <div v-if="isModalOpen" class="adminservice-modal">
       <div class="adminservice-modal-overlay" @click="closeModal"></div>
       <div class="adminservice-modal-content">
@@ -124,34 +139,73 @@
           </button>
         </div>
         <form @submit.prevent="editingService ? updateService() : addService()" class="adminservice-service-form">
-          <div class="adminservice-form-group">
-            <label for="serviceName">Service Name</label>
-            <div class="adminservice-input-wrapper">
-              <input 
-                v-model="currentService.name" 
-                type="text" 
-                id="serviceName" 
-                required 
-                placeholder="Enter service name"
-              />
-              <Clipboard class="adminservice-input-icon" size="16" />
+          <div class="adminservice-form-row">
+            <div class="adminservice-form-group">
+              <label for="serviceName">Service Name</label>
+              <div class="adminservice-input-wrapper">
+                <input 
+                  v-model="currentService.name" 
+                  type="text" 
+                  id="serviceName" 
+                  required 
+                  placeholder="Enter service name"
+                />
+                <Clipboard class="adminservice-input-icon" size="16" />
+              </div>
+            </div>
+            <div class="adminservice-form-group">
+              <label for="serviceDuration">Duration (minutes)</label>
+              <div class="adminservice-input-wrapper">
+                <input 
+                  v-model="currentService.duration" 
+                  type="number" 
+                  id="serviceDuration" 
+                  required 
+                  placeholder="Enter duration"
+                  min="15"
+                  step="15"
+                />
+                <Clock class="adminservice-input-icon" size="16" />
+              </div>
             </div>
           </div>
+          
           <div class="adminservice-form-group">
-            <label for="serviceDuration">Duration (minutes)</label>
-            <div class="adminservice-input-wrapper">
-              <input 
-                v-model="currentService.duration" 
-                type="number" 
-                id="serviceDuration" 
-                required 
-                placeholder="Enter duration"
-                min="15"
-                step="15"
+            <label for="serviceImage">Service Image</label>
+            <div class="adminservice-image-upload">
+              <div 
+                class="adminservice-image-preview"
+                :class="{ 'has-image': imagePreview }"
+                @click="triggerFileInput"
+              >
+                <img v-if="imagePreview" :src="imagePreview" alt="Service preview" />
+                <div v-else class="adminservice-upload-placeholder">
+                  <ImageIcon class="adminservice-placeholder-icon" size="32" />
+                  <span>Preview area</span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                class="adminservice-upload-button" 
+                @click="triggerFileInput"
+              >
+                <UploadCloud class="adminservice-button-icon" size="16" />
+                Upload Image
+              </button>
+              <input
+                type="file"
+                id="serviceImage"
+                ref="fileInput"
+                accept="image/*"
+                @change="handleImageUpload"
+                class="adminservice-file-input"
               />
-              <Clock class="adminservice-input-icon" size="16" />
+              <span v-if="selectedFile" class="adminservice-file-name">
+                Selected: {{ selectedFile.name }}
+              </span>
             </div>
           </div>
+
           <div class="adminservice-modal-actions">
             <button type="button" @click="closeModal" class="adminservice-cancel-button">
               <X size="16" />
@@ -166,16 +220,20 @@
       </div>
     </div>
 
-    <!-- Custom Notification -->
     <transition name="fade">
-      <div v-if="notification.show" class="adminservice-notification" :class="notification.type">
+      <div 
+        v-if="notification.show" 
+        class="adminservice-notification" 
+        :class="[notification.type, { 'is-loading': notification.loading }]"
+      >
         <div class="adminservice-notification-icon">
-          <CheckCircle v-if="notification.type === 'success'" size="24" />
+          <Loader v-if="notification.loading" class="animate-spin" size="24" />
+          <CheckCircle2 v-else-if="notification.type === 'success'" size="24" />
           <XCircle v-else size="24" />
         </div>
         <div class="adminservice-notification-content">
           <h4 class="adminservice-notification-title">
-            {{ notification.type === 'success' ? 'Success' : 'Error' }}
+            {{ notification.loading ? 'Processing' : notification.type === 'success' ? 'Success' : 'Error' }}
           </h4>
           <p class="adminservice-notification-message">{{ notification.message }}</p>
         </div>
@@ -188,25 +246,33 @@
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle, Clock, Filter, X, Check, Clipboard } from 'lucide-vue-next';
+import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle2, XCircle, Clock, Filter, X, Check, Clipboard, ImageIcon, UploadCloud, Loader } from 'lucide-vue-next';
 
 const services = ref([]);
-const currentService = ref({ name: '', duration: 60 });
+const currentService = ref({ name: '', duration: 60, imagePath: null });
 const editingService = ref(null);
 const isModalOpen = ref(false);
 const searchQuery = ref('');
 const durationFilter = ref('');
 const showArchived = ref(false);
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = 4;
+const loading = ref(true); // Added loading state
 
-const notification = ref({ show: false, message: '', type: '' });
+const notification = ref({ show: false, message: '', type: '', loading: false });
+const selectedFile = ref(null);
+const imagePreview = ref(null);
+const fileInput = ref(null);
 
-const showNotification = (message, type = 'success') => {
-  notification.value = { show: true, message, type };
+const showNotification = async (message, type = 'success') => {
+  notification.value = { show: true, message, type, loading: false };
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
+};
+
+const showLoadingNotification = (message) => {
+  notification.value = { show: true, message, type: 'loading', loading: true };
 };
 
 const openModal = () => {
@@ -215,18 +281,48 @@ const openModal = () => {
 
 const closeModal = () => {
   isModalOpen.value = false;
-  currentService.value = { name: '', duration: 60 };
+  currentService.value = { name: '', duration: 60, imagePath: null };
   editingService.value = null;
+  selectedFile.value = null;
+  imagePreview.value = null;
 };
 
 const addService = async () => {
+  showLoadingNotification('Adding service...');
   try {
+    let imagePath = '';
+    
+    if (selectedFile.value) {
+      const fileName = `service-${Date.now()}-${selectedFile.value.name}`;
+      const formData = new FormData();
+      formData.append('image', selectedFile.value);
+      formData.append('fileName', fileName);
+      formData.append('serviceId', '');
+
+      const uploadResponse = await fetch('http://localhost:5000/api/upload-service-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || 'Failed to upload image');
+      }
+
+      const responseData = await uploadResponse.json();
+      if (!responseData.success || !responseData.path) {
+        throw new Error('Failed to upload image: ' + (responseData.error || 'Unknown error'));
+      }
+      imagePath = responseData.path;
+    }
+
     const customId = 'service-' + Date.now();
     const serviceData = {
       ...currentService.value,
       id: customId,
       archived: false,
-      archivedAt: null
+      archivedAt: null,
+      imagePath // This will now contain the correct path
     };
 
     const serviceRef = await addDoc(collection(database, 'services'), serviceData);
@@ -235,7 +331,7 @@ const addService = async () => {
     closeModal();
     showNotification('Service added successfully!');
   } catch (error) {
-    console.error('Failed to add service:', error);
+    console.error('Error details:', error);
     showNotification('Failed to add service: ' + error.message, 'error');
   }
 };
@@ -243,11 +339,39 @@ const addService = async () => {
 const editService = (service) => {
   editingService.value = service;
   currentService.value = { ...service };
+  imagePreview.value = service.imagePath;
   openModal();
 };
 
 const updateService = async () => {
+  showLoadingNotification('Updating service...');
   try {
+    let imagePath = currentService.value.imagePath;
+
+    if (selectedFile.value) {
+      const fileName = `service-${Date.now()}-${selectedFile.value.name}`;
+      const formData = new FormData();
+      formData.append('image', selectedFile.value);
+      formData.append('fileName', fileName);
+      formData.append('serviceId', editingService.value.id);
+
+      const uploadResponse = await fetch('http://localhost:5000/api/upload-service-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || 'Failed to upload image');
+      }
+
+      const responseData = await uploadResponse.json();
+      if (!responseData.success || !responseData.path) {
+        throw new Error('Failed to upload image: ' + (responseData.error || 'Unknown error'));
+      }
+      imagePath = responseData.path;
+    }
+
     const servicesRef = collection(database, 'services');
     const q = query(servicesRef, where("id", "==", editingService.value.id));
     const querySnapshot = await getDocs(q);
@@ -257,19 +381,22 @@ const updateService = async () => {
     }
 
     const docRef = doc(database, 'services', querySnapshot.docs[0].id);
-    await updateDoc(docRef, currentService.value);
+    const updatedData = { ...currentService.value, imagePath };
+    await updateDoc(docRef, updatedData);
     
     const index = services.value.findIndex(s => s.id === editingService.value.id);
-    services.value[index] = { ...currentService.value, id: editingService.value.id };
+    services.value[index] = { ...updatedData, id: editingService.value.id };
+    
     closeModal();
     showNotification('Service updated successfully!');
   } catch (error) {
-    console.error('Failed to update service:', error);
+    console.error('Error details:', error);
     showNotification('Failed to update service: ' + error.message, 'error');
   }
 };
 
 const toggleArchiveService = async (service) => {
+  showLoadingNotification('Updating archive status...');
   try {
     const servicesRef = collection(database, 'services');
     const q = query(servicesRef, where("id", "==", service.id));
@@ -306,7 +433,8 @@ const toggleArchiveService = async (service) => {
 };
 
 const fetchServices = async () => {
-  try {
+  loading.value = true; // Set loading to true before fetching
+  try{
     const servicesCollection = collection(database, 'services');
     const serviceSnapshot = await getDocs(servicesCollection);
     services.value = serviceSnapshot.docs.map(doc => ({
@@ -314,11 +442,14 @@ const fetchServices = async () => {
       name: doc.data().name,
       duration: doc.data().duration || 60,
       archived: doc.data().archived || false,
-      archivedAt: doc.data().archivedAt || null
+      archivedAt: doc.data().archivedAt || null,
+      imagePath: doc.data().imagePath || null
     }));
   } catch (error) {
     console.error('Error fetching services:', error);
     showNotification('Failed to fetch services: ' + error.message, 'error');
+  } finally {
+    loading.value = false; // Set loading to false after fetching, regardless of success or failure
   }
 };
 
@@ -364,13 +495,48 @@ const applyFilters = () => {
 const resetFilters = () => {
   searchQuery.value = '';
   durationFilter.value = '';
+  showArchived.value = false;
   currentPage.value = 1;
+};
+
+const handleImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Validate file size (max 5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    showNotification('Image size should be less than 5MB', 'error');
+    return;
+  }
+
+  // Validate file type
+  if (!file.type.match(/^image\/(jpeg|png|gif|webp)$/)) {
+    showNotification('Please upload a valid image file (JPEG, PNG, GIF, or WebP)', 'error');
+    return;
+  }
+
+  selectedFile.value = file;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    imagePreview.value = e.target.result;
+  };
+  reader.onerror = () => {
+    showNotification('Failed to read image file', 'error');
+    selectedFile.value = null;
+    imagePreview.value = null;
+  };
+  reader.readAsDataURL(file);
+};
+
+const triggerFileInput = () => {
+  fileInput.value.click();
 };
 </script>
 
 <style scoped>
 .adminservice-container {
-  height: 100%;
+  height: 650px;
   background: white;
   border-radius: 8px;
   display: flex;
@@ -507,18 +673,25 @@ const resetFilters = () => {
 
 .adminservice-services-table {
   flex: 1;
-  overflow-y: auto;
+  min-height: 400px; /* Increased height */
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
+  margin-bottom: 0;
+}
+
+.adminservice-table-header,
+.adminservice-table-row {
+  display: grid;
+  grid-template-columns: 100px 1.5fr 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  align-items: center;
 }
 
 .adminservice-table-header {
-  display: grid;
-  grid-template-columns: minmax(200px, 1fr) 120px 100px;
   background: #8b5cf6;
-  padding: 0.75rem;
   position: sticky;
   top: 0;
 }
@@ -529,12 +702,13 @@ const resetFilters = () => {
   font-weight: 500;
 }
 
+.adminservice-table-header > div.adminservice-actions {
+  text-align: right;
+  padding-right: 1.5rem;
+}
+
 .adminservice-table-row {
-  display: grid;
-  grid-template-columns: minmax(200px, 1fr) 120px 100px;
-  padding: 0.75rem;
   border-bottom: 1px solid #e5e7eb;
-  align-items: center;
   font-size: 0.875rem;
 }
 
@@ -580,16 +754,22 @@ const resetFilters = () => {
 
 .adminservice-table-body {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .adminservice-pagination {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 0;
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 
 .adminservice-pagination-buttons {
@@ -598,18 +778,25 @@ const resetFilters = () => {
 }
 
 .adminservice-pagination-button {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
-  color: #374151;
-  cursor: pointer;
+  padding: 0.5rem 1rem;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .adminservice-pagination-button:disabled {
-  opacity: 0.5;
+  background: #e5e7eb;
+  color: #9ca3af;
   cursor: not-allowed;
+}
+
+.adminservice-pagination-button:not(:disabled):hover {
+  background: #7c3aed;
 }
 
 .adminservice-no-services {
@@ -621,70 +808,65 @@ const resetFilters = () => {
 
 .adminservice-notification {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 24px;
+  right: 24px;
   padding: 16px;
   border-radius: 12px;
   background-color: white;
   color: #374151;
   z-index: 1000;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  min-width: 300px;
   max-width: 400px;
-  width: 100%;
-}
-
-.adminservice-notification-icon {
-  flex-shrink: 0;
-}
-
-.adminservice-notification-content {
-  flex-grow: 1;
-}
-
-.adminservice-notification-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 4px 0;
-}
-
-.adminservice-notification-message {
-  font-size: 14px;
-  margin: 0;
-  line-height: 1.5;
+  border-left: 4px solid transparent;
+  transform-origin: top right;
 }
 
 .adminservice-notification.success {
-  border-left: 4px solid #7c3aed;
+  border-left-color: #10b981;
+  background-color: #f0fdf4;
 }
 
 .adminservice-notification.success .adminservice-notification-icon {
-  color: #7c3aed;
+  color: #10b981;
 }
 
 .adminservice-notification.error {
-  border-left: 4px solid #ef4444;
+  border-left-color: #ef4444;
+  background-color: #fef2f2;
 }
 
 .adminservice-notification.error .adminservice-notification-icon {
   color: #ef4444;
 }
 
+.adminservice-notification.is-loading {
+  border-left-color: #8b5cf6;
+  background-color: #f5f3ff;
+}
+
+.adminservice-notification.is-loading .adminservice-notification-icon {
+  color: #8b5cf6;
+}
+
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-  transform: translate(-50%, -60%);
+  transform: translateX(20px);
 }
 
-/* Enhanced Modal Styles */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 .adminservice-modal {
   position: fixed;
   top: 0;
@@ -695,6 +877,7 @@ const resetFilters = () => {
   justify-content: center;
   align-items: center;
   z-index: 50;
+  padding: 1rem; /* Added padding to keep modal within viewport */
 }
 
 .adminservice-modal-overlay {
@@ -711,13 +894,14 @@ const resetFilters = () => {
 .adminservice-modal-content {
   background: white;
   border-radius: 16px;
-  width: 500px;
-  max-width: 95%;
+  width: 90%;
+  max-width: 500px;
   position: relative;
   z-index: 51;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: slideUp 0.3s ease-out;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column; /* Removed overflow-y: auto; */
 }
 
 .adminservice-modal-header {
@@ -753,11 +937,17 @@ const resetFilters = () => {
 }
 
 .adminservice-service-form {
-  padding: 1.5rem;
+  padding: 1.25rem; /* Updated padding */
+}
+
+.adminservice-form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem; /* Updated margin */
 }
 
 .adminservice-form-group {
-  margin-bottom: 1.5rem;
+  flex: 1;
 }
 
 .adminservice-form-group label {
@@ -776,9 +966,9 @@ const resetFilters = () => {
 
 .adminservice-input-wrapper input {
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  padding:0.75rem 1rem 0.75rem 2.5rem;
   border: 2px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius:8px;
   font-size: 0.875rem;
   transition: all 0.2s;
   background: #f9fafb;
@@ -868,4 +1058,169 @@ const resetFilters = () => {
     width: 100%;
   }
 }
+
+.adminservice-image-upload {
+  margin-top: 0.5rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.adminservice-image-preview {
+  height: 200px;
+  width: 100%;
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.adminservice-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.adminservice-image-preview.has-image {
+  border-color: #8b5cf6;
+}
+
+.adminservice-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+}
+
+.adminservice-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.adminservice-upload-button:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+.adminservice-button-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.adminservice-file-input {
+  display: none;
+}
+
+.adminservice-file-name {
+  font-size: 0.875rem;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.adminservice-service-image {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.adminservice-table-image,
+.adminservice-no-image {
+  width: 70px;
+  height: 70px;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.adminservice-table-image:hover,
+.adminservice-no-image:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.2);
+  border-color: #8b5cf6;
+}
+
+.adminservice-service-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 0.5rem;
+}
+
+.adminservice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.adminservice-loading-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.adminservice-spinner {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.adminservice-spinner::before,
+.adminservice-spinner::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #8b5cf6;
+  opacity: 0.6;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.adminservice-spinner::after {
+  animation-delay: -1s;
+}
+
+.adminservice-loading-text {
+  color: #8b5cf6;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>
+

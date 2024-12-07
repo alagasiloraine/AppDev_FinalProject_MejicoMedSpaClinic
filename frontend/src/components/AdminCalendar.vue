@@ -29,7 +29,8 @@
             'admincalendar-current-month': day.currentMonth,
             'admincalendar-other-month': !day.currentMonth,
             'admincalendar-selected': isSelected(day.date),
-            'admincalendar-today': isToday(day.date)
+            'admincalendar-today': isToday(day.date),
+            'admincalendar-disabled': isPastDate(day.date)
           }"
           @click="selectDate(day.date)"
         >
@@ -219,6 +220,12 @@ const calendarDays = computed(() => {
   return days;
 });
 
+const isPastDate = (date) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+};
+
 const previousMonth = () => {
   currentDate.value = new Date(
     currentDate.value.getFullYear(),
@@ -236,7 +243,9 @@ const nextMonth = () => {
 };
 
 const selectDate = (date) => {
-  selectedDate.value = date;
+  if (!isPastDate(date)) {
+    selectedDate.value = date;
+  }
 };
 
 const isSelected = (date) => {
@@ -753,6 +762,22 @@ column;
   .appointment-body {
     padding: 16px;
   }
+}
+
+.admincalendar-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: #f3f4f6;
+}
+
+.admincalendar-disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.admincalendar-disabled .admincalendar-service-item {
+  opacity: 0.7;
 }
 </style>
 

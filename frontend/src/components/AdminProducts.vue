@@ -65,23 +65,23 @@
         <table v-if="!loading && filteredProducts.length > 0" class="adminproducts-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Price</th>
-              <th>Category</th>
-              <th>Actions</th>
+              <th class="w-2/5">Name</th>
+              <th class="w-1/5">Price</th>
+              <th class="w-1/5">Category</th>
+              <th class="w-1/5">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="product in filteredProducts" :key="product.id">
-              <td>
+              <td class="w-2/5">
                 <div class="adminproducts-item-info">
                   <Package class="adminproducts-item-icon" />
                   <span>{{ product.name }}</span>
                 </div>
               </td>
-              <td class="adminproducts-price-cell">₱{{ product.price.toFixed(2) }}</td>
-              <td>{{ product.category }}</td>
-              <td>
+              <td class="w-1/5 adminproducts-price-cell">₱{{ product.price.toFixed(2) }}</td>
+              <td class="w-1/5">{{ product.category }}</td>
+              <td class="w-1/5 text-right">
                 <button 
                   @click="openProductModal(product)"
                   class="adminproducts-view-btn"
@@ -481,17 +481,37 @@ onUnmounted(() => {
   border-spacing: 0;
 }
 
+.adminproducts-table th,
+.adminproducts-table td {
+  padding: 0.75rem 1rem;
+}
+
 .adminproducts-table th {
   background-color: #8b5cf6;
   color: white;
   font-weight: 600;
   text-align: left;
-  padding: 0.75rem;
   border-bottom: 2px solid #edf2f7;
+  border-right: 1px solid #9f7aea;
   position: sticky;
   top: 0;
   z-index: 10;
   font-size: 0.875rem;
+}
+
+.adminproducts-table th:last-child {
+  border-right: none;
+}
+
+.adminproducts-table td {
+  color: #2d3748;
+  font-size: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+}
+
+.adminproducts-table td:last-child {
+  border-right: none;
 }
 
 .adminproducts-table tbody tr:hover {
@@ -507,8 +527,6 @@ onUnmounted(() => {
 }
 
 .adminproducts-table td {
-  padding: 0.5rem;
-  border-bottom: 1px solid #edf2f7;
   color: #2d3748;
   font-size: 0.75rem;
 }
@@ -637,6 +655,9 @@ onUnmounted(() => {
 }
 
 .adminproducts-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -886,3 +907,4 @@ onUnmounted(() => {
   }
 }
 </style>
+

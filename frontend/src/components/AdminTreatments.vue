@@ -54,6 +54,7 @@
 
     <div class="admintreatment-treatments-table">
       <div class="admintreatment-table-header">
+        <div class="admintreatment-treatment-image">Image</div>
         <div class="admintreatment-treatment-name">Treatment Name</div>
         <div class="admintreatment-description">Description</div>
         <div class="admintreatment-price">Price</div>
@@ -61,8 +62,24 @@
         <div class="admintreatment-actions">Actions</div>
       </div>
       
-      <div v-if="paginatedTreatments.length > 0" class="admintreatment-table-body">
+      <div v-if="loading" class="admintreatment-loading-state">
+        <div class="admintreatment-spinner"></div>
+        <p class="admintreatment-loading-text">Loading treatments...</p>
+      </div>
+      
+      <div v-else-if="paginatedTreatments.length > 0" class="admintreatment-table-body">
         <div v-for="treatment in paginatedTreatments" :key="treatment.id" class="admintreatment-table-row">
+          <div class="admintreatment-treatment-image">
+            <img 
+              v-if="treatment.imagePath" 
+              :src="treatment.imagePath" 
+              alt="Treatment image"
+              class="admintreatment-table-image"
+            />
+            <div v-else class="admintreatment-no-image">
+              <ImageIcon size="24" class="admintreatment-placeholder-icon" />
+            </div>
+          </div>
           <div class="admintreatment-treatment-name">{{ treatment.name }}</div>
           <div class="admintreatment-description">{{ treatment.description }}</div>
           <div class="admintreatment-price">₱{{ treatment.price.toFixed(2) }}</div>
@@ -109,14 +126,13 @@
         <button 
           @click="nextPage" 
           class="admintreatment-pagination-button"
-          :disabled="currentPage === totalPages"
+          :disabled="currentPage >= totalPages"
         >
           Next
         </button>
       </div>
     </div>
 
-    <!-- Enhanced Modal -->
     <div v-if="isModalOpen" class="admintreatment-modal">
       <div class="admintreatment-modal-overlay" @click="closeModal"></div>
       <div class="admintreatment-modal-content">
@@ -184,6 +200,43 @@
                 </option>
               </select>
               <Package class="admintreatment-input-icon" size="16" />
+              <ChevronDown class="admintreatment-select-chevron" size="16" />
+            </div>
+          </div>
+          <div class="admintreatment-form-group">
+            <label for="treatmentImage">Treatment Image</label>
+            <div class="admintreatment-image-upload-wrapper">
+              <input 
+                type="file" 
+                id="treatmentImage" 
+                @change="handleImageUpload" 
+                accept="image/*"
+                class="admintreatment-file-input"
+                ref="fileInput"
+                hidden
+              />
+              <div 
+                class="admintreatment-image-preview" 
+                :class="{ 'has-image': imagePreview }"
+                @click="$refs.fileInput.click()"
+              >
+                <img v-if="imagePreview" :src="imagePreview" alt="Treatment preview" />
+                <div v-else class="admintreatment-upload-placeholder">
+                  <ImageIcon size="32" class="admintreatment-preview-icon" />
+                  <span class="admintreatment-preview-text">Preview area</span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                class="admintreatment-upload-button"
+                @click="$refs.fileInput.click()"
+              >
+                <UploadCloud class="button-icon" size="16" />
+                Upload Image
+              </button>
+              <div v-if="currentTreatment.image" class="admintreatment-selected-file">
+                Selected: {{ currentTreatment.image.name }}
+              </div>
             </div>
           </div>
           <div class="admintreatment-modal-actions">
@@ -200,16 +253,20 @@
       </div>
     </div>
 
-    <!-- Custom Notification -->
     <transition name="fade">
-      <div v-if="notification.show" class="admintreatment-notification" :class="notification.type">
+      <div 
+        v-if="notification.show" 
+        class="admintreatment-notification" 
+        :class="[notification.type, { 'is-loading': notification.loading }]"
+      >
         <div class="admintreatment-notification-icon">
-          <CheckCircle v-if="notification.type === 'success'" size="24" />
+          <Loader v-if="notification.loading" class="animate-spin" size="24" />
+          <CheckCircle v-else-if="notification.type === 'success'" size="24" />
           <XCircle v-else size="24" />
         </div>
         <div class="admintreatment-notification-content">
           <h4 class="admintreatment-notification-title">
-            {{ notification.type === 'success' ? 'Success' : 'Error' }}
+            {{ notification.loading ? 'Processing' : notification.type === 'success' ? 'Success' : 'Error' }}
           </h4>
           <p class="admintreatment-notification-message">{{ notification.message }}</p>
         </div>
@@ -222,28 +279,39 @@
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle, Filter, Package, FileText, DollarSign, Check, X, Clipboard } from 'lucide-vue-next';
-import { useToast } from 'vue-toastification';
+import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle, Filter, Package, FileText, DollarSign, Check, X, Clipboard, UploadCloud, Image as ImageIcon, Loader, ChevronDown } from 'lucide-vue-next';
 
-const toast = useToast();
+const loading = ref(true);
 const treatments = ref([]);
 const services = ref([]);
-const currentTreatment = ref({ name: '', description: '', price: 0, services: '' });
+const currentTreatment = ref({ 
+  name: '', 
+  description: '', 
+  price: 0, 
+  services: '', 
+  image: null,
+  imagePath: null 
+});
 const editingTreatment = ref(null);
 const isModalOpen = ref(false);
 const searchQuery = ref('');
 const selectedService = ref('');
 const showArchived = ref(false);
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = 4;
 
-const notification = ref({ show: false, message: '', type: '' });
+const notification = ref({ show: false, message: '', type: '', loading: false });
+const imagePreview = ref(null);
 
 const showNotification = (message, type = 'success') => {
-  notification.value = { show: true, message, type };
+  notification.value = { show: true, message, type, loading: false };
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
+};
+
+const showLoadingNotification = (message) => {
+  notification.value = { show: true, message, type: 'loading', loading: true };
 };
 
 const openModal = () => {
@@ -252,52 +320,159 @@ const openModal = () => {
 
 const closeModal = () => {
   isModalOpen.value = false;
-  currentTreatment.value = { name: '', description: '', price: 0, services: '' };
+  currentTreatment.value = { name: '', description: '', price: 0, services: '', image: null, imagePath: null };
   editingTreatment.value = null;
+  imagePreview.value = null;
+};
+
+const handleImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      imagePreview.value = e.target.result;
+      currentTreatment.value.image = file;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const uploadTreatmentImage = async (file) => {
+  if (!file) {
+    throw new Error('No file selected');
+  }
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const uploadResponse = await fetch('http://localhost:5000/api/upload-treatment-image', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Upload failed with status ${uploadResponse.status}`);
+    }
+
+    const responseData = await uploadResponse.json();
+    
+    if (!responseData.filename) {
+      throw new Error('No filename received from server');
+    }
+
+    const imagePath = `/uploads/treatment_images/${responseData.filename}`;
+    console.log('Image path being saved:', imagePath);
+    return imagePath;
+
+  } catch (error) {
+    console.error('Error uploading treatment image:', error);
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
 };
 
 const addTreatment = async () => {
+  showLoadingNotification('Adding treatment...');
   try {
-    const customId = 'treatment-' + Date.now();
+    let imagePath = null;
+    
+    if (currentTreatment.value.image) {
+      const formData = new FormData();
+      formData.append('image', currentTreatment.value.image);
+
+      const uploadResponse = await fetch('http://localhost:5000/api/upload-treatment-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status ${uploadResponse.status}`);
+      }
+
+      const responseData = await uploadResponse.json();
+      
+      if (!responseData.path) {
+        throw new Error('No path received from server');
+      }
+
+      imagePath = responseData.path;
+    }
+
     const treatmentData = {
-      ...currentTreatment.value,
-      id: customId,
+      name: currentTreatment.value.name,
+      description: currentTreatment.value.description,
+      price: Number(currentTreatment.value.price),
+      services: currentTreatment.value.services,
       archived: false,
-      archivedAt: null
+      archivedAt: null,
+      imagePath
     };
 
-    const treatmentRef = await addDoc(collection(database, 'treatments'), treatmentData);
-    treatments.value.push(treatmentData);
+    const docRef = await addDoc(collection(database, 'treatments'), treatmentData);
+    
+    treatments.value.push({
+      ...treatmentData,
+      id: docRef.id
+    });
     
     closeModal();
     showNotification('Treatment added successfully!');
   } catch (error) {
-    console.error('Failed to add treatment:', error);
+    console.error('Error adding treatment:', error);
     showNotification('Failed to add treatment: ' + error.message, 'error');
   }
 };
 
-const editTreatment = (treatment) => {
-  editingTreatment.value = treatment;
-  currentTreatment.value = { ...treatment };
-  openModal();
-};
-
 const updateTreatment = async () => {
+  showLoadingNotification('Updating treatment...');
   try {
-    const treatmentsRef = collection(database, 'treatments');
-    const q = query(treatmentsRef, where("id", "==", editingTreatment.value.id));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      throw new Error('Treatment not found');
+    let imagePath = currentTreatment.value.imagePath;
+
+    if (currentTreatment.value.image) {
+      try {
+        const formData = new FormData();
+        formData.append('image', currentTreatment.value.image);
+
+        const uploadResponse = await fetch('http://localhost:5000/api/upload-treatment-image', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed with status ${uploadResponse.status}`);
+        }
+
+        const responseData = await uploadResponse.json();
+        
+        if (!responseData.path) {
+          throw new Error('No path received from server');
+        }
+
+        imagePath = responseData.path;
+      } catch (uploadError) {
+        console.error('Image upload error:', uploadError);
+        showNotification('Failed to upload image: ' + uploadError.message, 'error');
+        return;
+      }
     }
 
-    const docRef = doc(database, 'treatments', querySnapshot.docs[0].id);
-    await updateDoc(docRef, currentTreatment.value);
+    const updateData = {
+      name: currentTreatment.value.name,
+      description: currentTreatment.value.description,
+      price: Number(currentTreatment.value.price),
+      services: currentTreatment.value.services,
+      imagePath
+    };
+
+    const docRef = doc(database, 'treatments', editingTreatment.value.id);
+    await updateDoc(docRef, updateData);
     
     const index = treatments.value.findIndex(t => t.id === editingTreatment.value.id);
-    treatments.value[index] = { ...currentTreatment.value, id: editingTreatment.value.id };
+    treatments.value[index] = { 
+      ...treatments.value[index],
+      ...updateData
+    };
+    
     closeModal();
     showNotification('Treatment updated successfully!');
   } catch (error) {
@@ -307,6 +482,7 @@ const updateTreatment = async () => {
 };
 
 const toggleArchiveTreatment = async (treatment) => {
+  showLoadingNotification('Updating archive status...');
   try {
     const treatmentsRef = collection(database, 'treatments');
     const q = query(treatmentsRef, where("id", "==", treatment.id));
@@ -343,21 +519,25 @@ const toggleArchiveTreatment = async (treatment) => {
 };
 
 const fetchTreatments = async () => {
+  loading.value = true;
   try {
     const treatmentsCollection = collection(database, 'treatments');
     const treatmentSnapshot = await getDocs(treatmentsCollection);
     treatments.value = treatmentSnapshot.docs.map(doc => ({
-      id: doc.data().id || doc.id,
+      id: doc.id,
       name: doc.data().name,
       description: doc.data().description,
       price: doc.data().price,
       services: doc.data().services,
       archived: doc.data().archived || false,
-      archivedAt: doc.data().archivedAt || null
+      archivedAt: doc.data().archivedAt || null,
+      imagePath: doc.data().imagePath || null
     }));
   } catch (error) {
     console.error('Error fetching treatments:', error);
     showNotification('Failed to fetch treatments: ' + error.message, 'error');
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -397,7 +577,7 @@ const paginatedTreatments = computed(() => {
 
 const totalTreatments = computed(() => filteredTreatments.value.length);
 
-const totalPages = computed(() => Math.ceil(totalTreatments.value / itemsPerPage));
+const totalPages = computed(() => Math.ceil(filteredTreatments.value.length / itemsPerPage));
 
 const prevPage = () => {
   if (currentPage.value > 1) {
@@ -425,11 +605,23 @@ const resetFilters = () => {
   selectedService.value = '';
   currentPage.value = 1;
 };
+
+const editTreatment = (treatment) => {
+  editingTreatment.value = treatment;
+  currentTreatment.value = {
+    ...treatment,
+    image: null
+  };
+  if (treatment.imagePath) {
+    imagePreview.value = treatment.imagePath;
+  }
+  isModalOpen.value = true;
+};
 </script>
 
 <style scoped>
 .admintreatment-container {
-  height: 100%;
+  height: 650px;
   background: white;
   border-radius: 8px;
   display: flex;
@@ -566,35 +758,41 @@ const resetFilters = () => {
 
 .admintreatment-treatments-table {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
+  margin-bottom: 0;
 }
 
 .admintreatment-table-header {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(200px, 2fr) 100px 150px 100px;
+  grid-template-columns: 80px minmax(200px, 1.5fr) minmax(200px, 2fr) 100px 150px 100px;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
   background: #8b5cf6;
-  padding: 0.75rem;
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
 .admintreatment-table-header > div {
-  color: white;
+  color: #ffffff;
   font-size: 0.875rem;
   font-weight: 500;
+  text-align: left;
 }
 
 .admintreatment-table-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(200px, 2fr) 100px 150px 100px;
+  grid-template-columns: 80px minmax(200px, 1.5fr) minmax(200px, 2fr) 100px 150px 100px;
+  gap: 0.75rem;
   padding: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
   align-items: center;
   font-size: 0.875rem;
+  min-height: 80px;
 }
 
 .admintreatment-table-row:hover {
@@ -638,17 +836,22 @@ const resetFilters = () => {
 }
 
 .admintreatment-table-body {
-  flex: 1;
-  overflow-y: auto;
+  flex: none;
+  overflow: visible;
 }
 
 .admintreatment-pagination {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 0;
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 
 .admintreatment-pagination-buttons {
@@ -657,18 +860,24 @@ const resetFilters = () => {
 }
 
 .admintreatment-pagination-button {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
-  color: #374151;
+  padding: 0.5rem 1rem;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
 }
 
 .admintreatment-pagination-button:disabled {
-  opacity: 0.5;
+  background: #e5e7eb;
+  color: #9ca3af;
   cursor: not-allowed;
+}
+
+.admintreatment-pagination-button:not(:disabled):hover {
+  background: #7c3aed;
 }
 
 .admintreatment-no-treatments {
@@ -679,7 +888,12 @@ const resetFilters = () => {
 }
 
 .admintreatment-treatment-name {
-  padding-right: 2rem;
+  font-weight: 500;
+  color: #1f2937;
+  padding-right: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admintreatment-price {
@@ -694,9 +908,8 @@ const resetFilters = () => {
 
 .admintreatment-notification {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 24px;
+  right: 24px;
   padding: 16px;
   border-radius: 12px;
   background-color: white;
@@ -707,7 +920,8 @@ const resetFilters = () => {
   gap: 16px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   max-width: 400px;
-  width: 100%;
+  width: auto;
+  transform: translateX(0);
 }
 
 .admintreatment-notification-icon {
@@ -746,28 +960,36 @@ const resetFilters = () => {
   color: #ef4444;
 }
 
+.admintreatment-notification.is-loading {
+  border-left: 4px solid #8b5cf6;
+}
+
+.admintreatment-notification.is-loading.admintreatment-notification-icon {
+  color: #8b5cf6;
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .fade-enter-from,
-.fade-leave-to {
+.fade-leaveto {
   opacity: 0;
-  transform: translate(-50%, -60%);
+  transform: translateX(100%);
 }
 
-/* Enhanced Modal Styles */
 .admintreatment-modal {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
+  width:100%;
   height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 50;
+  padding: 1rem;
 }
 
 .admintreatment-modal-overlay {
@@ -776,9 +998,10 @@ const resetFilters = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(4px);
+  background:rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(2px);
   animation: fadeIn 0.2s ease-out;
+  z-index: 49;
 }
 
 .admintreatment-modal-content {
@@ -786,14 +1009,34 @@ const resetFilters = () => {
   border-radius: 16px;
   width: 500px;
   max-width: 95%;
+  max-height: 90vh;
   position: relative;
   z-index: 51;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: slideUp 0.3s ease-out;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #8b5cf6 #f3f4f6;
+}
+
+.admintreatment-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admintreatment-modal-content::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.admintreatment-modal-content::-webkit-scrollbar-thumb {
+  background-color: #8b5cf6;
+  border-radius: 4px;
 }
 
 .admintreatment-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 52;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -889,6 +1132,13 @@ const resetFilters = () => {
   pointer-events: none;
 }
 
+.admintreatment-select-chevron {
+  position: absolute;
+  right: 0.75rem;
+  color: #6b7280;
+  pointer-events: none;
+}
+
 .admintreatment-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -907,15 +1157,6 @@ const resetFilters = () => {
   border-radius: 8px;
   font-weight: 500;
   transition: all 0.2s;
-}
-
-.admintreatment-input-wrapper textarea {
-  padding-left: 2.5rem;
-}
-
-.admintreatment-input-wrapper textarea + .admintreatment-input-icon {
-  top: 0.95rem;
-  transform: none;
 }
 
 .admintreatment-submit-button {
@@ -939,6 +1180,117 @@ const resetFilters = () => {
   background: #e5e7eb;
 }
 
+.admintreatment-image-upload-wrapper {
+  margin-top: 1rem;
+}
+
+.admintreatment-image-preview {
+  width: 100%;
+  height: 200px;
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  background: #f9fafb;
+  margin-bottom: 1rem;
+}
+
+.admintreatment-image-preview.has-image {
+  border-style: solid;
+}
+
+.admintreatment-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admintreatment-upload-button {
+  width: 100%;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.admintreatment-upload-button:hover {
+  background: #7c3aed;
+}
+
+.admintreatment-selected-file {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.admintreatment-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.admintreatment-preview-icon {
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.admintreatment-preview-text {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+
+.admintreatment-treatment-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admintreatment-table-image,
+.admintreatment-no-image {
+  width: 62px;
+  height: 62px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #f3f4f6;
+  transition: all 0.2s ease;
+}
+
+.admintreatment-table-image:hover,
+.admintreatment-no-image:hover {
+  transform: scale(1.05);
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+}
+
+.admintreatment-no-image {
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admintreatment-placeholder-icon {
+  color: #9ca3af;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -960,22 +1312,59 @@ const resetFilters = () => {
 }
 
 @media (max-width: 768px) {
-  .admintreatment-search-controls {
-    flex-direction: column;
-  }
-
-  .admintreatment-search-wrapper {
-    width: 100%;
-  }
-
   .admintreatment-table-header,
   .admintreatment-table-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 80px minmax(150px, 1fr) minmax(150px, 1.5fr) 100px 120px 100px;
+    gap: 0.5rem;
+    padding: 0.75rem;
   }
+}
 
-  .admintreatment-description,
-  .admintreatment-services {
-    display: none;
+.admintreatment-loading-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.admintreatment-spinner {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.admintreatment-spinner::before,
+.admintreatment-spinner::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #8b5cf6;
+  opacity: 0.6;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.admintreatment-spinner::after {
+  animation-delay: -1s;
+}
+
+.admintreatment-loading-text {
+  color: #8b5cf6;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1);
   }
 }
 </style>
+

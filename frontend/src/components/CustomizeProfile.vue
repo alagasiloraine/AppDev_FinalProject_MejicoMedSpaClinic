@@ -545,7 +545,7 @@
                     <button 
                       type="button" 
                       class="nav-btn prev-btn" 
-                      :disabled="isEditMode || currentPage === 1"
+                      :disabled="!isEditMode || currentPage === 1"
                       @click="previousPage"
                     >
                       Previous
@@ -553,7 +553,7 @@
                     <button 
                       type="button" 
                       class="nav-btn next-btn" 
-                      :disabled="isEditMode || currentPage === 3 || !isPageComplete(currentPage - 1)"
+                      :disabled="!isEditMode || currentPage === 3 || !isPageComplete(currentPage - 1)"
                       @click="nextPage"
                     >
                       {{ currentPage === 3 ? 'Finish' : 'Next' }}
@@ -1143,44 +1143,65 @@ const getStepLabel = (page) => {
 
 const isPageComplete = (pageIndex) => {
   switch (pageIndex) {
-    case 0: // First page validation
-      return (
-        typeof form.medical.hasAllergies === 'boolean' &&
-        (!form.medical.hasAllergies || form.medical.allergyType) &&
-        typeof form.medical.hasChronicConditions === 'boolean' &&
-        (!form.medical.hasChronicConditions || form.medical.chronicConditionType) &&
-        typeof form.medical.hasSkinConditions === 'boolean' &&
-        (!form.medical.hasSkinConditions || form.medical.selectedSkinConditions.length > 0)
-      );
-    case 1: // Second page validation
-      return (
-        form.medical.skinType &&
-        typeof form.medical.hasPreviousTreatments === 'boolean' &&
-        typeof form.medical.hasMedications === 'boolean' &&
-        (!form.medical.hasMedications || form.medical.medications)
-      );
-    case 2: // Third page validation
-      return (
-        typeof form.medical.hasSkincareRoutine === 'boolean' &&
-        typeof form.medical.isPregnantOrBreastfeeding === 'boolean' &&
-        form.medical.selectedSpaGoals.length > 0
-      );
+    case 0: // First page validation (Basic Health)
+      // Check allergies
+      if (typeof form.medical.hasAllergies !== 'boolean') return false;
+      if (form.medical.hasAllergies && !form.medical.allergyType) return false;
+      
+      // Check chronic conditions
+      if (typeof form.medical.hasChronicConditions !== 'boolean') return false;
+      if (form.medical.hasChronicConditions && !form.medical.chronicConditionType) return false;
+      
+      // Check skin conditions
+      if (typeof form.medical.hasSkinConditions !== 'boolean') return false;
+      if (form.medical.hasSkinConditions && form.medical.selectedSkinConditions.length === 0) return false;
+      
+      // All validations passed
+      return true;
+
+    case 1: // Second page validation (Skin & Treatment)
+      if (!form.medical.skinType) return false;
+      
+      if (typeof form.medical.hasPreviousTreatments !== 'boolean') return false;
+      if (form.medical.hasPreviousTreatments && form.medical.selectedTreatments.length === 0) return false;
+      if (form.medical.selectedTreatments.includes('other') && !form.medical.otherTreatmentSpecification) return false;
+      
+      if (typeof form.medical.hasMedications !== 'boolean') return false;
+      if (form.medical.hasMedications && !form.medical.medications) return false;
+      
+      return true;
+
+    case 2: // Third page validation (Additional Info)
+      if (typeof form.medical.hasSkincareRoutine !== 'boolean') return false;
+      if (form.medical.hasSkincareRoutine && form.medical.selectedSkincareProducts.length === 0) return false;
+      
+      if (typeof form.medical.isPregnantOrBreastfeeding !== 'boolean') return false;
+      
+      if (!form.medical.selectedSpaGoals || form.medical.selectedSpaGoals.length === 0) return false;
+      if (form.medical.selectedSpaGoals.includes('other') && !form.medical.otherSpaGoalSpecification) return false;
+      
+      return true;
+
     default:
       return false;
   }
 };
 
 const previousPage = () => {
-  if (currentPage > 1) {
+  if (currentPage.value > 1) {
     currentPage.value--;
   }
 };
 
 const nextPage = () => {
-  if (currentPage < 3 && isPageComplete(currentPage - 1)) {
+  if (currentPage.value < 3 && isPageComplete(currentPage.value - 1)) {
     currentPage.value++;
   }
 };
+
+watch(currentPage, (newPage) => {
+  console.log('Page changed to:', newPage);
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -2014,3 +2035,4 @@ const nextPage = () => {
   }
 }
 </style>
+

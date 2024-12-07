@@ -30,9 +30,6 @@
           <router-link to="/calendar" class="dropdown-item" active-class="active" @click="closeDropdown">
             <ClipboardList size="16" class="icon" /> View Calendar
           </router-link>
-          <router-link to="/clientoffers" class="dropdown-item" active-class="active" @click="closeDropdown">
-            <Tag size="16" class="icon" /> Offers
-          </router-link>
         </div>
       </div>
       <router-link to="/contact" class="nav-item" active-class="active">Contact Us</router-link>

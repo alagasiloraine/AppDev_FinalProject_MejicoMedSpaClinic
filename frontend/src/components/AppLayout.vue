@@ -19,7 +19,6 @@
 
         <!-- Main Menu Section -->
         <div class="menu-section">
-          <span class="menu-label">ADMIN MENU</span>
           
           <nav class="nav-section">
             <div class="nav-container">
@@ -123,6 +122,7 @@ import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, database } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { 
+  LineChart, 
   ChevronDownIcon, 
   ChevronUpIcon,
   LayoutDashboardIcon,
@@ -245,6 +245,15 @@ const routes = [
       { path: '/admin/inventory', name: 'Inventory' },
     ]
   },
+  { 
+    name: 'Predictions',
+    icon: LineChart,
+    adminOnly: true,
+    submenu: [
+      { path: '/admin/sales-predictions', name: 'Sales Predictions' },
+      { path: '/admin/stock-predictions', name: 'Stock Predictions' },
+    ]
+  },
 ];
 </script>
 
@@ -316,16 +325,6 @@ const routes = [
   padding: 1.25rem 1rem;
   flex-grow: 1;
   overflow-y: auto;
-}
-
-.menu-label {
-  display: block;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-bottom: 1rem;
-  letter-spacing: 0.05em;
-  padding-left: 1rem;
 }
 
 .nav-container {
@@ -569,3 +568,4 @@ const routes = [
   height: 0 !important;
 }
 </style>
+

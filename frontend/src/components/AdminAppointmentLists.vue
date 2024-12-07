@@ -25,6 +25,16 @@
           class="search-input"
         >
       </div>
+      <div class="search-wrapper">
+        <SortAsc class="search-icon" />
+        <select v-model="sortOption" class="select-sort">
+          <option value="latest">Latest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="thisWeek">This Week</option>
+          <option value="nextWeek">Next Week</option>
+          <option value="thisMonth">This Month</option>
+        </select>
+      </div>
       <button @click="applyFilters" class="btn btn-primary">
         <Filter class="btn-icon" />
         Search
@@ -175,7 +185,8 @@ import {
   Download,
   File,
   FileSpreadsheet,
-  FileText
+  FileText,
+  SortAsc
 } from 'lucide-vue-next';
 
 const appointments = ref([]);
@@ -183,6 +194,7 @@ const loading = ref(true);
 const error = ref(null);
 const searchMonth = ref('');
 const searchTreatment = ref('');
+const sortOption = ref('latest');
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const appointmentStats = computed(() => [
@@ -213,6 +225,8 @@ const fetchApprovedAppointments = async () => {
         patientName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'N/A',
       };
     }));
+
+    appointments.value.sort((a, b) => b.date.toDate() - a.date.toDate());
   } catch (err) {
     console.error("Error fetching approved appointments:", err);
     error.value = 'Failed to fetch approved appointments. Please try again later.';
@@ -240,7 +254,7 @@ const formatPrice = (price) => {
 };
 
 const filteredAppointments = computed(() => {
-  return appointments.value.filter(appointment => {
+  let filtered = appointments.value.filter(appointment => {
     const matchesMonth = searchMonth.value
       ? (appointment.date.toDate().getMonth() + 1) === Number(searchMonth.value)
       : true;
@@ -249,7 +263,43 @@ const filteredAppointments = computed(() => {
       : true;
     return matchesMonth && matchesTreatment;
   });
+
+  // Apply sorting
+  switch (sortOption.value) {
+    case 'latest':
+      filtered.sort((a, b) => b.date.toDate() - a.date.toDate());
+      break;
+    case 'oldest':
+      filtered.sort((a, b) => a.date.toDate() - b.date.toDate());
+      break;
+    case 'thisWeek':
+      filtered = filterAppointmentsByWeek(filtered, 0);
+      break;
+    case 'nextWeek':
+      filtered = filterAppointmentsByWeek(filtered, 1);
+      break;
+    case 'thisMonth':
+      const now = new Date();
+      filtered = filtered.filter(a => 
+        a.date.toDate().getMonth() === now.getMonth() && 
+        a.date.toDate().getFullYear() === now.getFullYear()
+      );
+      break;
+  }
+
+  return filtered;
 });
+
+const filterAppointmentsByWeek = (appointments, weekOffset) => {
+  const now = new Date();
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + (7 * weekOffset));
+  const endOfWeek = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6);
+  
+  return appointments.filter(a => {
+    const appointmentDate = a.date.toDate();
+    return appointmentDate >= startOfWeek && appointmentDate <= endOfWeek;
+  });
+};
 
 const applyFilters = () => {
   // Filtering handled by computed property
@@ -258,6 +308,7 @@ const applyFilters = () => {
 const resetFilters = () => {
   searchMonth.value = '';
   searchTreatment.value = '';
+  sortOption.value = 'latest';
 };
 
 const exportToPDF = async () => {
@@ -405,7 +456,8 @@ onMounted(() => {
 }
 
 .select-month,
-.search-input {
+.search-input,
+.select-sort {
   width: 100%;
   padding: 0.4rem 0.5rem 0.4rem 2rem;
   border: 1px solid #e2e8f0;
@@ -416,7 +468,8 @@ onMounted(() => {
 }
 
 .select-month:focus,
-.search-input:focus {
+.search-input:focus,
+.select-sort:focus {
   outline: none;
   border-color: #9f7aea;
   box-shadow: 0 0 0 3px rgba(159, 122, 234, 0.1);
@@ -764,6 +817,7 @@ onMounted(() => {
   
   .select-month,
   .search-input,
+  .select-sort,
   .btn {
     width: 100%;
   }
@@ -849,3 +903,4 @@ onMounted(() => {
   }
 }
 </style>
+

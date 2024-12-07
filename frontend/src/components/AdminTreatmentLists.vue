@@ -1,40 +1,42 @@
 <template>
   <div class="admintreatment-container">
-    <div class="admintreatment-header">
-      <h1 class="admintreatment-title">Services and Treatments List</h1>
-    </div>
-
-    <div class="admintreatment-controls">
-      <div class="admintreatment-filter">
-        <select v-model="selectedService" class="admintreatment-select">
-          <option value="">All Services</option>
-          <option v-for="service in services" :key="service.docId" :value="service.docId">
-            {{ service.name }}
-          </option>
-        </select>
-        <ChevronDownIcon class="admintreatment-select-icon" />
+    <div class="admintreatment-sticky-header">
+      <div class="admintreatment-header">
+        <h1 class="admintreatment-title">Services and Treatments List</h1>
       </div>
-      
-      <div class="admintreatment-search-wrapper">
-        <div class="admintreatment-search">
-          <SearchIcon class="admintreatment-search-icon" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Search by treatment"
-            class="admintreatment-search-input"
-          />
+
+      <div class="admintreatment-controls">
+        <div class="admintreatment-filter">
+          <select v-model="selectedService" class="admintreatment-select">
+            <option value="">All Services</option>
+            <option v-for="service in services" :key="service.docId" :value="service.docId">
+              {{ service.name }}
+            </option>
+          </select>
+          <ChevronDownIcon class="admintreatment-select-icon" />
         </div>
         
-        <button class="admintreatment-button search-button" @click="applyFilters">
-          <FilterIcon class="button-icon" />
-          Search
-        </button>
-        
-        <button class="admintreatment-button reset-button" @click="resetFilters">
-          <RotateCcwIcon class="button-icon" />
-          Reset
-        </button>
+        <div class="admintreatment-search-wrapper">
+          <div class="admintreatment-search">
+            <SearchIcon class="admintreatment-search-icon" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search by treatment"
+              class="admintreatment-search-input"
+            />
+          </div>
+          
+          <button class="admintreatment-button search-button" @click="applyFilters">
+            <FilterIcon class="button-icon" />
+            Search
+          </button>
+          
+          <button class="admintreatment-button reset-button" @click="resetFilters">
+            <RotateCcwIcon class="button-icon" />
+            Reset
+          </button>
+        </div>
       </div>
     </div>
 
@@ -74,9 +76,22 @@
               class="admintreatment-treatment-item"
             >
               <div class="admintreatment-treatment-content">
-                <h4>{{ treatment.name }}</h4>
-                <div class="admintreatment-treatment-price">
-                  ₱{{ treatment.price.toFixed(2) }}
+                <div class="admintreatment-treatment-image">
+                  <img 
+                    v-if="treatment.imagePath" 
+                    :src="treatment.imagePath" 
+                    :alt="treatment.name"
+                    class="admintreatment-treatment-img"
+                  />
+                  <div v-else class="admintreatment-treatment-no-image">
+                    <ImageIcon size="24" />
+                  </div>
+                </div>
+                <div class="admintreatment-treatment-details">
+                  <h4>{{ treatment.name }}</h4>
+                  <div class="admintreatment-treatment-price">
+                    ₱{{ treatment.price.toFixed(2) }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -98,7 +113,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { database } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { SearchIcon, ChevronDownIcon, PackageIcon, PackageXIcon, FilterIcon, RotateCcwIcon } from 'lucide-vue-next';
+import { SearchIcon, ChevronDownIcon, PackageIcon, PackageXIcon, FilterIcon, RotateCcwIcon, ImageIcon } from 'lucide-vue-next';
 
 const treatments = ref([]);
 const services = ref([]);
@@ -113,13 +128,14 @@ const fetchTreatments = async () => {
     const treatmentSnapshot = await getDocs(treatmentsCollection);
     treatments.value = treatmentSnapshot.docs.map(doc => ({
       id: doc.data().id,
-      docId: doc.id, // Store the Firestore document ID
+      docId: doc.id,
       name: doc.data().name,
       price: Number(doc.data().price),
-      services: doc.data().services, // This contains the service's document ID
-      description: doc.data().description
+      services: doc.data().services,
+      description: doc.data().description,
+      imagePath: doc.data().imagePath
     }));
-    console.log('Fetched treatments:', treatments.value); // Debug log
+    console.log('Fetched treatments:', treatments.value);
   } catch (error) {
     console.error('Error fetching treatments:', error);
   } finally {
@@ -133,10 +149,10 @@ const fetchServices = async () => {
     const serviceSnapshot = await getDocs(servicesCollection);
     services.value = serviceSnapshot.docs.map(doc => ({
       id: doc.data().id,
-      docId: doc.id, // Store the Firestore document ID
+      docId: doc.id,
       name: doc.data().name
     }));
-    console.log('Fetched services:', services.value); // Debug log
+    console.log('Fetched services:', services.value);
   } catch (error) {
     console.error('Error fetching services:', error);
   } finally {
@@ -182,10 +198,24 @@ onMounted(async () => {
 .admintreatment-container {
   max-width: 1200px;
   margin: 0 auto;
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  background: white;
+  border-radius: 8px;
+  position: relative;
+}
+
+.admintreatment-sticky-header {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .admintreatment-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .admintreatment-title {
@@ -193,14 +223,13 @@ onMounted(async () => {
   font-weight: 600;
   color: #1a1a1a;
   text-align: left;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .admintreatment-controls {
   display: flex;
   gap: 1rem;
   margin-top: 1rem;
-  margin-bottom: 2rem;
   flex-wrap: wrap;
   width: 100%;
 }
@@ -221,7 +250,7 @@ onMounted(async () => {
 .admintreatment-search-input {
   width: 100%;
   padding: 0.625rem 1rem 0.625rem 2.5rem;
-  height: 40px; /* Slightly increased height */
+  height: 40px;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   font-size: 0.875rem;
@@ -337,6 +366,9 @@ onMounted(async () => {
   overflow: hidden;
   transition: all 0.3s ease;
   position: relative;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .admintreatment-service-card::before {
@@ -385,7 +417,7 @@ onMounted(async () => {
   left: -10px;
   right: -10px;
   bottom: -10px;
-  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
   opacity: 0.5;
 }
 
@@ -404,7 +436,7 @@ onMounted(async () => {
 
 .admintreatment-treatments-container {
   padding: 1.5rem;
-  max-height: 400px;
+  flex: 1;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #7c3aed #f3f4f6;
@@ -458,9 +490,32 @@ onMounted(async () => {
 
 .admintreatment-treatment-content {
   display: flex;
+  align-items: center;
+}
+
+.admintreatment-treatment-image {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-right: 1rem;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admintreatment-treatment-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admintreatment-treatment-details {
+  flex: 1;
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  position: relative;
 }
 
 .admintreatment-treatment-content h4 {
@@ -471,9 +526,9 @@ onMounted(async () => {
 }
 
 .admintreatment-treatment-price {
-  font-weight: 600;
+  font-weight: 500;
   color: #7c3aed;
-  font-size: 1.125rem;
+  font-size: 0.875rem;
   background: rgba(180, 146, 240, 0.1);
   padding: 0.25rem 0.5rem;
   border-radius: 0.375rem;
@@ -497,6 +552,15 @@ onMounted(async () => {
   width: 3rem;
   height: 3rem;
   color: #9ca3af;
+}
+
+.admintreatment-treatment-no-image {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .loading-state {
@@ -576,4 +640,3 @@ onMounted(async () => {
   }
 }
 </style>
-

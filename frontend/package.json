@@ -12,7 +12,7 @@
     "@emailjs/browser": "^4.4.1",
     "@vuepic/vue-datepicker": "^10.0.0",
     "axios": "^1.7.7",
-    "chart.js": "^4.4.6",
+    "chart.js": "^4.4.7",
     "chartjs-adapter-moment": "^1.0.1",
     "firebase": "^11.0.1",
     "gsap": "^3.12.5",

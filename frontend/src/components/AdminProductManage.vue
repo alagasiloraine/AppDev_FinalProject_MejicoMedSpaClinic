@@ -902,12 +902,16 @@ onMounted(async () => {
 }
 
 .adminprodmanage-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem;
   border-bottom: 1px solid #e2e8f0;
   background: linear-gradient(to right, #8b5cf6, #6366f1);
+  border-radius: 16px 0 0 0;
 }
 
 .adminprodmanage-modal-header h3 {
@@ -1110,3 +1114,4 @@ onMounted(async () => {
   }
 }
 </style>
+

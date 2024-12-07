@@ -40,11 +40,20 @@
               <input
                 id="password"
                 v-model="password"
-                type="password"
+                :type="showPassword ? 'text' : 'password'"
                 required
                 class="form-input"
                 placeholder="••••••••"
               />
+              <button 
+                type="button"
+                class="password-toggle"
+                @click="showPassword = !showPassword"
+                tabindex="-1"
+              >
+                <Eye v-if="!showPassword" class="icon" />
+                <EyeOff v-else class="icon" />
+              </button>
             </div>
           </div>
 
@@ -81,7 +90,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Mail, Lock, ArrowLeft } from 'lucide-vue-next';
+import { Mail, Lock, ArrowLeft, Eye, EyeOff } from 'lucide-vue-next';
 import { login, resetPassword } from '../services/authService';
 import { doc, getDoc } from 'firebase/firestore';
 import { database } from '../firebase';
@@ -92,6 +101,7 @@ const popupMessage = ref('');
 const isError = ref(false);
 const showPopup = ref(false);
 const isLoading = ref(false);
+const showPassword = ref(false);
 const router = useRouter();
 
 const displayPopup = (msg, error = false, duration = 3000) => {
@@ -456,4 +466,29 @@ const goToLandingPage = () => {
 .fade-enter, .fade-leave-to /* .fade-leave-active in <2.1.8 */ {
   opacity: 0;
 }
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #b0b0b0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.password-toggle:hover {
+  color: #4a399c;
+}
+
+.form-input[type="password"] {
+  padding-right: 40px;
+}
 </style>
+

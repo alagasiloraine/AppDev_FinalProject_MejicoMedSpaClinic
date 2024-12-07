@@ -36,6 +36,16 @@
           type="text"
         />
       </div>
+      <div class="search-wrapper">
+        <SortAsc class="search-icon" />
+        <select v-model="sortOption" class="select-sort">
+          <option value="latest">Latest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="thisWeek">This Week</option>
+          <option value="nextWeek">Next Week</option>
+          <option value="thisMonth">This Month</option>
+        </select>
+      </div>
       <button @click="applyFilters" class="btn btn-primary">
         <Filter class="btn-icon" />
         Search
@@ -211,7 +221,8 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
-  File
+  File,
+  SortAsc
 } from 'lucide-vue-next';
 
 const appointments = ref([]);
@@ -220,6 +231,7 @@ const error = ref(null);
 const searchName = ref('');
 const searchMonth = ref('');
 const searchTreatment = ref('');
+const sortOption = ref('latest');
 
 const fetchAppointments = async () => {
   loading.value = true;
@@ -245,6 +257,7 @@ const fetchAppointments = async () => {
       });
     }
 
+    appointmentsData.sort((a, b) => b.date.toDate() - a.date.toDate());
     appointments.value = appointmentsData;
   } catch (err) {
     console.error("Error fetching appointments:", err);
@@ -295,20 +308,46 @@ const formatDate = (date) => {
 };
 
 const filteredAppointments = computed(() => {
-  return appointments.value.filter(appointment => {
-    const matchesName = searchName.value
-      ? appointment.clientName.toLowerCase().includes(searchName.value.toLowerCase())
-      : true;
-    const matchesMonth = searchMonth.value
-      ? (appointment.date.toDate().getMonth() + 1) === Number(searchMonth.value)
-      : true;
-    const matchesTreatment = searchTreatment.value
-      ? appointment.services.some(service => 
-          service.toLowerCase().includes(searchTreatment.value.toLowerCase())
-        )
-      : true;
-    return matchesName && matchesMonth && matchesTreatment;
-  });
+  let filtered = appointments.value
+    .filter(appointment => {
+      const matchesName = searchName.value
+        ? appointment.clientName.toLowerCase().includes(searchName.value.toLowerCase())
+        : true;
+      const matchesMonth = searchMonth.value
+        ? (appointment.date.toDate().getMonth() + 1) === Number(searchMonth.value)
+        : true;
+      const matchesTreatment = searchTreatment.value
+        ? appointment.services.some(service => 
+            service.toLowerCase().includes(searchTreatment.value.toLowerCase())
+          )
+        : true;
+      return matchesName && matchesMonth && matchesTreatment;
+    });
+
+  // Apply sorting
+  switch (sortOption.value) {
+    case 'latest':
+      filtered.sort((a, b) => b.date.toDate() - a.date.toDate());
+      break;
+    case 'oldest':
+      filtered.sort((a, b) => a.date.toDate() - b.date.toDate());
+      break;
+    case 'thisWeek':
+      filtered = filterAppointmentsByWeek(filtered, 0);
+      break;
+    case 'nextWeek':
+      filtered = filterAppointmentsByWeek(filtered, 1);
+      break;
+    case 'thisMonth':
+      const now = new Date();
+      filtered = filtered.filter(a => 
+        a.date.toDate().getMonth() === now.getMonth() && 
+        a.date.toDate().getFullYear() === now.getFullYear()
+      );
+      break;
+  }
+
+  return filtered;
 });
 
 const applyFilters = () => {
@@ -319,6 +358,7 @@ const resetFilters = () => {
   searchName.value = '';
   searchMonth.value = '';
   searchTreatment.value = '';
+  sortOption.value = 'latest';
 };
 
 const getStatusClass = (status) => {
@@ -425,6 +465,17 @@ const exportToCSV = async () => {
   }
 };
 
+const filterAppointmentsByWeek = (appointments, weekOffset) => {
+  const now = new Date();
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + (7 * weekOffset));
+  const endOfWeek = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6);
+  
+  return appointments.filter(a => {
+    const appointmentDate = a.date.toDate();
+    return appointmentDate >= startOfWeek && appointmentDate <= endOfWeek;
+  });
+};
+
 onMounted(() => {
   fetchAppointments();
 });
@@ -489,7 +540,8 @@ onMounted(() => {
 }
 
 .search-input,
-.select-month {
+.select-month,
+.select-sort {
   width: 100%;
   padding: 0.5rem 0.75rem 0.5rem 2.5rem;
   border: 1px solid #e5e7eb;
@@ -501,7 +553,8 @@ onMounted(() => {
 }
 
 .search-input:focus,
-.select-month:focus {
+.select-month:focus,
+.select-sort:focus {
   outline: none;
   border-color: #7c3aed;
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);

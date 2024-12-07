@@ -142,8 +142,9 @@
                     <div class="admininventory-stock-bar-wrapper">
                       <div class="admininventory-stock-bar">
                         <div class="admininventory-stock-fill" 
-                             :class="getStockLevelClass(product.quantity)"
-                             :style="{ width: getStockPercentage(product.quantity) + '%' }">
+                             :class="[getStockLevelClass(product.quantity), {'stock-reducing': product.id === reducingProductId}]"
+                             :style="{ width: getStockPercentage(product.quantity) + '%' }"
+                             :data-percentage="getStockPercentage(product.quantity)">
                         </div>
                       </div>
                       <span class="admininventory-stock-text" :class="getStockTextClass(product.quantity)">
@@ -164,7 +165,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
   AlertCircleIcon, 
   PackageIcon, 
@@ -182,6 +183,8 @@ const loading = ref(true);
 const error = ref(null);
 const searchCategory = ref('');
 const searchProduct = ref('');
+const reducingProductId = ref(null); // Added reducingProductId ref
+const isReducing = ref(false); // Added isReducing ref
 
 const uniqueCategories = computed(() => {
   return [...new Set(inventory.value.map(item => item.category))];
@@ -218,30 +221,39 @@ const filteredInventory = computed(() => {
 
 // Utility functions for styling
 const getStockLevelClass = (quantity) => {
-  if (quantity >= 20) return 'admininventory-bg-green-500';
-  if (quantity >= 10) return 'admininventory-bg-yellow-500';
+  const percentage = (quantity / 100) * 100; // Using max stock of 100
+  if (percentage >= 60) return 'admininventory-bg-green-500';
+  if (percentage >= 30) return 'admininventory-bg-yellow-500';
   return 'admininventory-bg-red-500';
 };
 
 const getStockTextClass = (quantity) => {
-  if (quantity >= 20) return 'admininventory-text-green-600';
-  if (quantity >= 10) return 'admininventory-text-yellow-600';
+  const percentage = (quantity / 100) * 100; // Using max stock of 100
+  if (percentage >= 60) return 'admininventory-text-green-600';
+  if (percentage >= 30) return 'admininventory-text-yellow-600';
   return 'admininventory-text-red-600 admininventory-font-semibold';
 };
 
 const getStockPercentage = (quantity) => {
-  const initialStock = 40; // Base stock level
-  return Math.min((quantity / initialStock) * 100, 100);
+  const maxStock = 100; // Changed from 50 to 100 to match your stock levels
+  return Math.max(0, Math.min((quantity / maxStock) * 100, 100));
 };
 
 const getCategoryColor = (category) => {
-  const colors = {
-    'Hair Care': 'admininventory-bg-purple-100 admininventory-text-purple-800',
-    'Skin Care': 'admininventory-bg-blue-100 admininventory-text-blue-800',
-    'Body Care': 'admininventory-bg-green-100 admininventory-text-green-800',
-    'default': 'admininventory-bg-gray-100 admininventory-text-gray-800'
-  };
-  return colors[category] || colors.default;
+  const colors = [
+    'admininventory-bg-purple-100 admininventory-text-purple-800',
+    'admininventory-bg-blue-100 admininventory-text-blue-800',
+    'admininventory-bg-green-100 admininventory-text-green-800',
+    'admininventory-bg-yellow-100 admininventory-text-yellow-800',
+    'admininventory-bg-red-100 admininventory-text-red-800',
+    'admininventory-bg-indigo-100 admininventory-text-indigo-800',
+    'admininventory-bg-pink-100 admininventory-text-pink-800',
+  ];
+  
+  // Generate a consistent index for each category
+  const index = category.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+  
+  return colors[index];
 };
 
 const getStatColor = (label) => {
@@ -274,7 +286,6 @@ const getStatIconClass = (label) => {
   return classes[label] || '';
 };
 
-// Firebase fetch
 const fetchInventory = async () => {
   loading.value = true;
   error.value = null;
@@ -290,8 +301,131 @@ const fetchInventory = async () => {
   }
 };
 
+const setupAppointmentListener = () => {
+  const appointmentsRef = collection(database, 'appointments');
+  
+  onSnapshot(appointmentsRef, (snapshot) => {
+    snapshot.docChanges().forEach(async (change) => {
+      const appointmentData = change.doc.data();
+      console.log('Appointment data:', appointmentData);
+      
+      // Check if this is a newly approved appointment
+      if (change.type === 'modified' && 
+          appointmentData.status === 'approved' && 
+          !appointmentData.stockReduced) {
+        console.log('Processing newly approved appointment:', change.doc.id);
+        
+        try {
+          // Get the service name from the appointment
+          const serviceName = appointmentData.service || (appointmentData.services && appointmentData.services[0]);
+          
+          if (!serviceName) {
+            console.error('No service name found in appointment:', appointmentData);
+            return;
+          }
+          
+          console.log('Processing service:', serviceName);
+
+          // Get fresh product data
+          const productsRef = collection(database, 'products');
+          const productsSnapshot = await getDocs(productsRef);
+          
+          // Log all products and their categories for debugging
+          console.log('Available products:', productsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })));
+          
+          // Find matching product by category with flexible matching
+          const matchingProduct = productsSnapshot.docs.find(doc => {
+            const productData = doc.data();
+            const productCategory = productData.category?.toLowerCase().trim();
+            const serviceNameNormalized = serviceName.toLowerCase().trim();
+            
+            console.log('Comparing:', {
+              service: serviceNameNormalized,
+              category: productCategory,
+              matches: productCategory === serviceNameNormalized
+            });
+            
+            return productCategory === serviceNameNormalized;
+          });
+
+          if (!matchingProduct) {
+            console.error('No matching product found for service:', serviceName);
+            return;
+          }
+
+          const productData = matchingProduct.data();
+          console.log('Found matching product:', {
+            id: matchingProduct.id,
+            data: productData
+          });
+
+          // Verify we have stock to reduce
+          if (productData.quantity <= 0) {
+            console.error('Insufficient stock for product:', productData.name);
+            return;
+          }
+
+          reducingProductId.value = matchingProduct.id; // Update reducingProductId
+          isReducing.value = true; // Added isReducing update
+          // Update the product quantity
+          const productRef = doc(database, 'products', matchingProduct.id);
+          const newQuantity = productData.quantity - 1;
+          
+          await updateDoc(productRef, {
+            quantity: newQuantity,
+            updatedAt: new Date().toISOString()
+          });
+
+          console.log('Updated product quantity:', {
+            product: productData.name,
+            oldQuantity: productData.quantity,
+            newQuantity: newQuantity
+          });
+
+          // Mark the appointment as processed
+          const appointmentRef = doc(database, 'appointments', change.doc.id);
+          await updateDoc(appointmentRef, {
+            stockReduced: true,
+            stockReducedAt: new Date().toISOString(),
+            processedProductId: matchingProduct.id
+          });
+
+          console.log('Marked appointment as processed:', {
+            appointmentId: change.doc.id,
+            productId: matchingProduct.id
+          });
+
+          setTimeout(() => { // Added setTimeout
+            reducingProductId.value = null; // Reset reducingProductId
+            isReducing.value = false;
+          }, 1000);
+
+          // Refresh inventory display
+          await fetchInventory();
+          
+        } catch (err) {
+          console.error('Error processing appointment:', err);
+          error.value = 'Error updating inventory: ' + err.message;
+        }
+      }
+    });
+  });
+};
+
+const debugInfo = computed(() => {
+  return {
+    inventoryCount: inventory.value.length,
+    categories: inventory.value.map(item => item.category),
+    lastError: error.value
+  };
+});
+
 onMounted(() => {
   fetchInventory();
+  setupAppointmentListener();
 });
 </script>
 
@@ -597,7 +731,7 @@ onMounted(() => {
 .admininventory-stock-bar {
   flex: 1;
   height: 0.5rem;
-  background-color: #f1f5f9;
+  background-color: #e2e8f0;  /* Changed from #f1f5f9 to a darker gray */
   border-radius: 9999px;
   overflow: hidden;
   max-width: 120px;
@@ -605,7 +739,8 @@ onMounted(() => {
 
 .admininventory-stock-fill {
   height: 100%;
-  transition: width 0.5s ease;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left;
 }
 
 .admininventory-stock-text {
@@ -657,6 +792,14 @@ onMounted(() => {
 .admininventory-text-blue-800 { color: #1e40af; }
 .admininventory-bg-green-100 { background-color: #dcfce7; }
 .admininventory-text-green-800 { color: #166534; }
+.admininventory-bg-yellow-100 { background-color: #fef8e0; }
+.admininventory-text-yellow-800 { color: #975a00; }
+.admininventory-bg-red-100 { background-color: #fdebeb; }
+.admininventory-text-red-800 { color: #881313; }
+.admininventory-bg-indigo-100 { background-color: #e6f2ff; }
+.admininventory-text-indigo-800 { color: #3b1e70; }
+.admininventory-bg-pink-100 { background-color: #fff1f2; }
+.admininventory-text-pink-800 { color: #a8193f; }
 
 /* Add these new loading state styles */
 .loading-state {
@@ -702,4 +845,25 @@ onMounted(() => {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Added animation styles */
+@keyframes stockReduction {
+  0% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(0.95);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.stock-reducing {
+  animation: stockReduction 1s ease-in-out infinite;
+}
 </style>
+
