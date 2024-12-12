@@ -6,6 +6,49 @@
       <p class="admininventory-subtitle">Track and manage your product inventory</p>
     </div>
 
+    <div class="admininventory-notification">
+      <button 
+        @click="showNotification = !showNotification" 
+        class="admininventory-notification-button"
+        :class="{ 'has-notifications': lowStockItems.length > 0 }"
+      >
+        <Bell class="h-5 w-5" />
+        <span v-if="lowStockItems.length > 0" class="admininventory-notification-badge">
+          {{ lowStockItems.length }}
+        </span>
+      </button>
+      
+      <!-- Notification Dropdown -->
+      <div v-if="showNotification" class="admininventory-notification-dropdown">
+        <div class="admininventory-notification-header">
+          <h3 class="text-lg font-semibold">Low Stock Items</h3>
+          <button @click="showNotification = false" class="text-gray-500 hover:text-gray-700">
+            <X class="h-4 w-4" />
+          </button>
+        </div>
+        <div class="admininventory-notification-content">
+          <div v-if="lowStockItems.length === 0" class="admininventory-notification-empty">
+            <Package class="h-8 w-8 text-gray-400" />
+            <p>No low stock items</p>
+          </div>
+          <div v-else class="admininventory-notification-items">
+            <div v-for="item in lowStockItems" :key="item.id" class="admininventory-notification-item">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-red-50 rounded-lg">
+                  <Package class="h-5 w-5 text-red-500" />
+                </div>
+                <div class="admininventory-product-info">
+                  <span class="admininventory-product-name">{{ item.name }}</span>
+                  <span class="admininventory-stock-text">Stock: {{ item.quantity }}</span>
+                </div>
+              </div>
+              <span class="admininventory-price">₱{{ item.price.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="error" class="admininventory-error-alert">
       <AlertCircleIcon class="admininventory-error-icon" />
       <span>{{ error }}</span>
@@ -19,7 +62,7 @@
           <LayoutGrid v-if="stat.label === 'Total Items'" class="h-5 w-5" />
           <Package v-if="stat.label === 'Total Stock'" class="h-5 w-5" />
           <AlertTriangle v-if="stat.label === 'Low Stock Items'" class="h-5 w-5" />
-          <DollarSign v-if="stat.label === 'Total Value'" class="h-5 w-5" />
+          <Coins v-if="stat.label === 'Total Value'" class="h-5 w-5" />
         </div>
         <div class="admininventory-stat-content">
           <h3 class="admininventory-stat-label">{{ stat.label }}</h3>
@@ -27,6 +70,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- Enhanced Search Controls -->
     <div class="admininventory-search-section">
@@ -59,17 +103,6 @@
       </div>
     </div>
 
-    <!-- Enhanced Low Stock Alert -->
-    <div v-if="lowStockItems.length > 0" class="admininventory-low-stock-alert">
-      <div class="admininventory-alert-content">
-        <AlertCircleIcon class="admininventory-alert-icon" />
-        <div>
-          <p class="admininventory-alert-title">Low Stock Alert</p>
-          <p class="admininventory-alert-description">{{ lowStockItems.length }} items require attention</p>
-        </div>
-      </div>
-      <button class="admininventory-alert-action">View Items</button>
-    </div>
 
     <!-- Improved Inventory Table -->
     <div class="admininventory-inventory-table">
@@ -174,8 +207,10 @@ import {
   RotateCcw, 
   Loader,
   LayoutGrid,
-  DollarSign,
-  AlertTriangle
+  Coins,
+  AlertTriangle,
+  Bell,
+  X
 } from 'lucide-vue-next';
 
 const inventory = ref([]);
@@ -183,14 +218,14 @@ const loading = ref(true);
 const error = ref(null);
 const searchCategory = ref('');
 const searchProduct = ref('');
-const reducingProductId = ref(null); // Added reducingProductId ref
-const isReducing = ref(false); // Added isReducing ref
+const reducingProductId = ref(null);
+const isReducing = ref(false);
+const showNotification = ref(false);
 
 const uniqueCategories = computed(() => {
   return [...new Set(inventory.value.map(item => item.category))];
 });
 
-// Stats computation
 const inventoryStats = computed(() => {
   const totalItems = inventory.value.length;
   const totalStock = inventory.value.reduce((sum, item) => sum + item.quantity, 0);
@@ -201,12 +236,12 @@ const inventoryStats = computed(() => {
     { label: 'Total Items', value: totalItems },
     { label: 'Total Stock', value: totalStock },
     { label: 'Low Stock Items', value: lowStockCount },
-    { label: 'Total Value', value: `₱${totalValue.toFixed(2)}` },
+    { label: 'Total Value', value: `₱${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   ];
 });
 
 const lowStockItems = computed(() => {
-  return inventory.value.filter(item => item.quantity < 10);
+  return inventory.value.filter(item => item.quantity < 15);
 });
 
 const filteredInventory = computed(() => {
@@ -219,23 +254,22 @@ const filteredInventory = computed(() => {
   });
 });
 
-// Utility functions for styling
 const getStockLevelClass = (quantity) => {
-  const percentage = (quantity / 100) * 100; // Using max stock of 100
+  const percentage = (quantity / 100) * 100;
   if (percentage >= 60) return 'admininventory-bg-green-500';
   if (percentage >= 30) return 'admininventory-bg-yellow-500';
   return 'admininventory-bg-red-500';
 };
 
 const getStockTextClass = (quantity) => {
-  const percentage = (quantity / 100) * 100; // Using max stock of 100
+  const percentage = (quantity / 100) * 100;
   if (percentage >= 60) return 'admininventory-text-green-600';
   if (percentage >= 30) return 'admininventory-text-yellow-600';
   return 'admininventory-text-red-600 admininventory-font-semibold';
 };
 
 const getStockPercentage = (quantity) => {
-  const maxStock = 100; // Changed from 50 to 100 to match your stock levels
+  const maxStock = 100;
   return Math.max(0, Math.min((quantity / maxStock) * 100, 100));
 };
 
@@ -250,7 +284,6 @@ const getCategoryColor = (category) => {
     'admininventory-bg-pink-100 admininventory-text-pink-800',
   ];
   
-  // Generate a consistent index for each category
   const index = category.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
   
   return colors[index];
@@ -309,14 +342,12 @@ const setupAppointmentListener = () => {
       const appointmentData = change.doc.data();
       console.log('Appointment data:', appointmentData);
       
-      // Check if this is a newly approved appointment
       if (change.type === 'modified' && 
           appointmentData.status === 'approved' && 
           !appointmentData.stockReduced) {
         console.log('Processing newly approved appointment:', change.doc.id);
         
         try {
-          // Get the service name from the appointment
           const serviceName = appointmentData.service || (appointmentData.services && appointmentData.services[0]);
           
           if (!serviceName) {
@@ -326,17 +357,14 @@ const setupAppointmentListener = () => {
           
           console.log('Processing service:', serviceName);
 
-          // Get fresh product data
           const productsRef = collection(database, 'products');
           const productsSnapshot = await getDocs(productsRef);
           
-          // Log all products and their categories for debugging
           console.log('Available products:', productsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           })));
           
-          // Find matching product by category with flexible matching
           const matchingProduct = productsSnapshot.docs.find(doc => {
             const productData = doc.data();
             const productCategory = productData.category?.toLowerCase().trim();
@@ -362,15 +390,13 @@ const setupAppointmentListener = () => {
             data: productData
           });
 
-          // Verify we have stock to reduce
           if (productData.quantity <= 0) {
             console.error('Insufficient stock for product:', productData.name);
             return;
           }
 
-          reducingProductId.value = matchingProduct.id; // Update reducingProductId
-          isReducing.value = true; // Added isReducing update
-          // Update the product quantity
+          reducingProductId.value = matchingProduct.id;
+          isReducing.value = true;
           const productRef = doc(database, 'products', matchingProduct.id);
           const newQuantity = productData.quantity - 1;
           
@@ -385,7 +411,6 @@ const setupAppointmentListener = () => {
             newQuantity: newQuantity
           });
 
-          // Mark the appointment as processed
           const appointmentRef = doc(database, 'appointments', change.doc.id);
           await updateDoc(appointmentRef, {
             stockReduced: true,
@@ -398,12 +423,11 @@ const setupAppointmentListener = () => {
             productId: matchingProduct.id
           });
 
-          setTimeout(() => { // Added setTimeout
-            reducingProductId.value = null; // Reset reducingProductId
+          setTimeout(() => {
+            reducingProductId.value = null;
             isReducing.value = false;
           }, 1000);
 
-          // Refresh inventory display
           await fetchInventory();
           
         } catch (err) {
@@ -434,6 +458,10 @@ onMounted(() => {
 .admininventory-container {
   max-width: 1200px;
   margin: 0 auto;
+  height: 650px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Enhanced Header Section */
@@ -456,19 +484,19 @@ onMounted(() => {
 /* Improved Stats Grid */
 .admininventory-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Reduced from 240px */
-  gap: 1rem; /* Reduced from 1.5rem */
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .admininventory-stat-card {
   background-color: white;
-  padding: 1rem; /* Reduced from 1.5rem */
-  border-radius: 0.75rem; /* Slightly reduced from 1rem */
+  padding: 1rem;
+  border-radius: 0.75rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
-  gap: 0.75rem; /* Reduced from 1rem */
+  gap: 0.75rem;
   transition: all 0.2s ease;
   border: 1px solid #e2e8f0;
 }
@@ -479,8 +507,8 @@ onMounted(() => {
 }
 
 .admininventory-stat-icon-wrapper {
-  padding: 0.5rem; /* Reduced from 0.75rem */
-  border-radius: 0.5rem; /* Reduced from 0.75rem */
+  padding: 0.5rem;
+  border-radius: 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -497,17 +525,17 @@ onMounted(() => {
 }
 
 .admininventory-stat-value {
-  font-size: 1.25rem; /* Reduced from 1.5rem */
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.2;
 }
 
 /* Enhanced Search Section */
 .admininventory-search-section {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   background-color: white;
   border-radius: 1rem;
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
 }
@@ -596,6 +624,10 @@ onMounted(() => {
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .admininventory-table-header {
@@ -621,15 +653,14 @@ onMounted(() => {
 }
 
 .admininventory-table-wrapper {
-  max-height: 400px; /* Set a maximum height for the table */
-  overflow-y: auto; /* Enable vertical scrolling */
-  width: 100%;
-  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .admininventory-table-container {
   width: 100%;
-  min-width: 700px; /* Ensure minimum width for smaller screens */
+  min-width: 700px;
 }
 
 .admininventory-table {
@@ -639,7 +670,10 @@ onMounted(() => {
 }
 
 .admininventory-table th {
+  position: sticky;
+  top: 0;
   background-color: #f8fafc;
+  z-index: 10;
   padding: 1rem 1.5rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -647,10 +681,6 @@ onMounted(() => {
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
-  position: sticky;
-  top: 0;
-  background-color: #f8fafc;
-  z-index: 10;
 }
 
 .admininventory-table td {
@@ -731,7 +761,7 @@ onMounted(() => {
 .admininventory-stock-bar {
   flex: 1;
   height: 0.5rem;
-  background-color: #e2e8f0;  /* Changed from #f1f5f9 to a darker gray */
+  background-color: #e2e8f0;
   border-radius: 9999px;
   overflow: hidden;
   max-width: 120px;
@@ -747,6 +777,8 @@ onMounted(() => {
   font-weight: 500;
   min-width: 2rem;
   text-align: right;
+  color: #64748b; /* Updated color */
+  font-size: 0.875rem; /* Updated font size */
 }
 
 /* Responsive Design */
@@ -848,9 +880,8 @@ onMounted(() => {
 
 /* Added animation styles */
 @keyframes stockReduction {
-  0% {
-    transform: scaleX(1);
-    opacity: 1;
+    0% {
+    transform: scaleX(1);    opacity: 1;
   }
   50% {
     transform: scaleX(0.95);
@@ -863,7 +894,131 @@ onMounted(() => {
 }
 
 .stock-reducing {
-  animation: stockReduction 1s ease-in-out infinite;
+  animation: stockReduction 1sease-in-out infinite;
+}
+
+.admininventory-low-stock-section {
+  margin-bottom: 1rem;
+}
+
+.admininventory-notification {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 50;
+}
+
+.admininventory-notification-button {
+  position: relative;
+  padding: 0.5rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.admininventory-notification-button:hover {
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+.admininventory-notification-button.has-notifications {
+  color: #dc2626;
+}
+
+.admininventory-notification-badge {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  background-color: #dc2626;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.admininventory-notification-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 320px;
+  background-color: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.admininventory-notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admininventory-notification-content {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.admininventory-notification-empty {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: #64748b;
+}
+
+.admininventory-notification-items {
+  padding: 1rem;
+}
+
+.admininventory-notification-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admininventory-notification-item:last-child {
+  border-bottom: none;
+}
+
+.admininventory-price {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.admininventory-empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  gap: 1rem;
+}
+
+.admininventory-empty-icon {
+  width: 4rem;
+  height: 4rem;
+  color: #64748b;
+}
+
+.admininventory-empty-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admininventory-empty-subtext {
+  font-size: 0.875rem;
+  color: #64748b;
 }
 </style>
 

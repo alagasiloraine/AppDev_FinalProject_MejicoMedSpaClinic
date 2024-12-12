@@ -213,6 +213,7 @@ const fetchApprovedAppointments = async () => {
       id: doc.id,
       ...doc.data(),
       date: doc.data().date instanceof Timestamp ? doc.data().date : Timestamp.fromDate(new Date(doc.data().date)),
+      createdAt: doc.data().createdAt,
       price: doc.data().price || 0,
       services: doc.data().services || [],
     }));
@@ -267,10 +268,10 @@ const filteredAppointments = computed(() => {
   // Apply sorting
   switch (sortOption.value) {
     case 'latest':
-      filtered.sort((a, b) => b.date.toDate() - a.date.toDate());
+      filtered.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
       break;
     case 'oldest':
-      filtered.sort((a, b) => a.date.toDate() - b.date.toDate());
+      filtered.sort((a, b) => a.createdAt.toDate() - b.createdAt.toDate());
       break;
     case 'thisWeek':
       filtered = filterAppointmentsByWeek(filtered, 0);

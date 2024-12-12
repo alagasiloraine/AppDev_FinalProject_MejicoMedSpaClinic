@@ -49,7 +49,7 @@
         <div class="adminproducts-stat-icon-wrapper">
           <Package v-if="stat.label === 'Total Products'" class="adminproducts-stat-icon" />
           <Tags v-if="stat.label === 'Categories'" class="adminproducts-stat-icon" />
-          <DollarSign v-if="stat.label === 'Total Value'" class="adminproducts-stat-icon" />
+          <Coins v-if="stat.label === 'Total Value'" class="adminproducts-stat-icon" />
         </div>
         <div class="adminproducts-stat-content">
           <p class="adminproducts-stat-value">{{ stat.value }}</p>
@@ -183,7 +183,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { database } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { 
-  Package, Tags, DollarSign, Loader, Eye, X, Search, Filter, RotateCcw 
+  Package, Tags, Coins, Loader, Eye, X, Search, Filter, RotateCcw 
 } from 'lucide-vue-next';
 
 const products = ref([]);
@@ -219,7 +219,10 @@ const productStats = computed(() => {
   return [
     { label: 'Total Products', value: totalProducts },
     { label: 'Categories', value: categories.length },
-    { label: 'Total Value', value: `₱${totalValue.toFixed(2)}` },
+    { label: 'Total Value', value: `₱${totalValue.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}` },
   ];
 });
 

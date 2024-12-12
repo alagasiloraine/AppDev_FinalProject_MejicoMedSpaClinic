@@ -1,4 +1,4 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
 
 // Example route to get clients
@@ -7,4 +7,5 @@ router.get('/clients', (req, res) => {
   res.status(200).json({ message: 'Client data retrieved successfully' });
 });
 
-module.exports = router;
+export default router;
+

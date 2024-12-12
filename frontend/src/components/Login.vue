@@ -188,7 +188,7 @@ const handleResetPassword = async () => {
 };
 
 const goToLandingPage = () => {
-  router.push('/').catch(err => {
+  router.push({ name: 'Landing' }).catch(err => {
     if (err.name !== 'NavigationDuplicated') {
       console.error('Navigation error:', err);
     }
@@ -491,4 +491,3 @@ const goToLandingPage = () => {
   padding-right: 40px;
 }
 </style>
-

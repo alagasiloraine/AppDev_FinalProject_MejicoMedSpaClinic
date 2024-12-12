@@ -113,7 +113,7 @@
                   :disabled="isAppointmentCancelledOrPending(appointment)"
                 >
                   <XIcon class="icon" /> Cancel
-                </button>
+                </button> 
               </div>
             </div>
           </div>
@@ -121,6 +121,7 @@
           <!-- Book or Update Appointment -->
           <div v-if="mode === 'book' || mode === 'update'" class="booking-form">
             <h3 class="services-heading">Select Services</h3>
+            
             <!-- Service Selection with Pagination -->
             <div class="service-section">
               <div class="service-options">
@@ -172,6 +173,7 @@
               @click="showSummaryModal"
               :disabled="!isFormValid"
               class="action-button"
+              v-if="mode === 'book' || mode === 'update'"
             >
               <CalendarPlusIcon v-if="mode === 'book'" class="icon" />
               <RefreshCwIcon v-else class="icon" />
@@ -297,7 +299,7 @@
                           <div v-for="treatment in selectedTreatmentsForService[serviceId]" :key="treatment.id" class="treatment-item">
                             <span>{{ treatment.name }}</span>
                             <span class="treatment-quantity">x{{ treatment.quantity }}</span>
-                            <span class="treatment-price">₱{{ (treatment.price * treatment.quantity).toLocaleString('en-PH') }}</span>
+                            <span class="treatment-price">₱{{ formatPrice(treatment.price * treatment.quantity) }}</span>
                           </div>
                         </div>
                       </div>
@@ -312,7 +314,7 @@
               <div class="summary-totals">
                 <div class="total-row">
                   <span>Total Price:</span>
-                  <span class="highlight price-highlight">₱{{ totalPrice.toLocaleString('en-PH') }}</span>
+                  <span class="highlight price-highlight">₱{{ formatPrice(totalPrice) }}</span>
                 </div>
               </div>
               <div class="summary-divider"></div>
@@ -406,6 +408,7 @@ import {
   MinusIcon,
   PlusIcon
 } from 'lucide-vue-next';
+import { getUserEmail } from '../utils/firebaseUtils';
 
 const router = useRouter();
 
@@ -413,7 +416,7 @@ const selectedDate = ref(new Date());
 const currentMonth = ref(new Date());
 const selectedServices = ref({});
 const selectedTime = ref('');
-const mode = ref('view');
+const mode = ref('book'); // Changed initial value to 'book'
 const selectedAppointment = ref(null);
 const appointments = ref([]);
 const unavailableTimeSlots = ref([]);
@@ -426,6 +429,7 @@ const cancellationStatus = ref('');
 const services = ref([]);
 const isLoading = ref(false);
 const error = ref(null);
+const previousBookingDetails = ref(null);
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -561,12 +565,23 @@ const confirmAppointment = async () => {
     isConfirmationModalVisible.value = true;
     confirmationStatus.value = 'confirming';
 
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      throw new Error('No authenticated user');
+    }
+
+    const userEmail = await getUserEmail(userId);
+    if (!userEmail) {
+      throw new Error('User email not found in Firestore');
+    }
+
     const appointmentData = {
-      userId: auth.currentUser?.uid,
-      userEmail: auth.currentUser?.email,
+      userId: userId,
+      userEmail: userEmail,
       services: Object.entries(selectedServices.value).flatMap(([id, count]) => 
         Array(count).fill(services.value.find(s => s.id === id)?.name)
       ),
+      treatments: selectedTreatmentsHistory.value, 
       date: selectedDate.value.toISOString().split('T')[0],
       time: selectedTime.value,
       price: totalPrice.value,
@@ -580,19 +595,11 @@ const confirmAppointment = async () => {
       const appointmentDoc = await addDoc(appointmentsRef, appointmentData);
       console.log('New appointment created with ID:', appointmentDoc.id);
 
-      if (auth.currentUser) {
-        const userAppointmentsRef = collection(
-          database, 
-          'users', 
-          auth.currentUser.uid, 
-          'appointments'
-        );
-        
-        await addDoc(userAppointmentsRef, {
-          appointmentId: appointmentDoc.id,
-          createdAt: serverTimestamp()
-        });
-      }
+      const userAppointmentsRef = collection(database, 'users', userId, 'appointments');
+      await addDoc(userAppointmentsRef, {
+        appointmentId: appointmentDoc.id,
+        createdAt: serverTimestamp()
+      });
     } else if (mode.value === 'update' && selectedAppointment.value) {
       const appointmentRef = doc(database, 'appointments', selectedAppointment.value.id);
       await updateDoc(appointmentRef, {
@@ -617,36 +624,54 @@ const confirmAppointment = async () => {
   }
 };
 
-const fetchAppointments = async () => {
+function myFunction() {
+  const userEmail = getUserEmail();
+  console.log(userEmail);
+}
+
+myFunction();
+
+const fetchAppointments = () => {
   if (!auth.currentUser) {
     console.log('No authenticated user');
     return;
   }
 
-  try {
-    isLoading.value = true;
-    error.value = null;
+  isLoading.value = true;
+  error.value = null;
+  
+  const appointmentsRef = collection(database, 'appointments');
+  const q = query(
+    appointmentsRef,
+    where('userId', '==', auth.currentUser.uid)
+  );
+  
+  // Set up real-time listener
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    appointments.value = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return dateB - dateA;
+      });
     
-    const appointmentsRef = collection(database, 'appointments');
-    const q = query(
-      appointmentsRef,
-      where('userId', '==', auth.currentUser.uid)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    appointments.value = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    console.log('Fetched appointments:', appointments.value);
+    console.log('Real-time appointments update:', appointments.value);
     isLoading.value = false;
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
+  }, (error) => {
+    console.error('Error in real-time appointments:', error);
     error.value = 'Error loading appointments';
     isLoading.value = false;
     appointments.value = [];
-  }
+  });
+
+  // Clean up listener on component unmount
+  onUnmounted(() => {
+    unsubscribe();
+  });
 };
 
 const cancelAppointment = async (appointmentId) => {
@@ -732,21 +757,43 @@ const clearSelection = () => {
   selectedServices.value = {};
   selectedTime.value = null;
   selectedAppointment.value = null;
+  previousBookingDetails.value = null;
 };
 
-const selectAppointment = (appointment) => {
+const selectAppointment = async (appointment) => {
+  if (!appointment) {
+    console.log('No appointment provided');
+    return;
+  }
+
+  // Clear previous selections first
+  clearAllSelections();
+  
   selectedAppointment.value = appointment;
   mode.value = 'update';
-  selectedServices.value = appointment.services.reduce((acc, service) => {
-    const serviceObj = services.value.find(s => s.name === service);
-    if (serviceObj) {
-      acc[serviceObj.id] = (acc[serviceObj.id] || 0) + 1;
-    }
-    return acc;
-  }, {});
+  
+  // Set selected services from previous booking
+  if (appointment.services && Array.isArray(appointment.services)) {
+    selectedServices.value = appointment.services.reduce((acc, service) => {
+      const serviceObj = services.value.find(s => s.name === service);
+      if (serviceObj) {
+        acc[serviceObj.id] = (acc[serviceObj.id] || 0) + 1;
+      }
+      return acc;
+    }, {});
+  }
+
+  // Set selected treatments if they exist
+  if (appointment.treatments) {
+    selectedTreatmentsHistory.value = appointment.treatments;
+  }
+
+  // Set date and time
   selectedDate.value = new Date(appointment.date);
   currentMonth.value = new Date(appointment.date);
   selectedTime.value = appointment.time;
+  
+  // Update UI
   updateCalendarHighlight();
 };
 
@@ -762,9 +809,23 @@ const updateCalendarHighlight = () => {
 };
 
 const showSummaryModal = () => {
-  if (isFormValid.value) {
-    isSummaryModalVisible.value = true;
+  if (!isFormValid.value) {
+    console.log('Form is not valid');
+    return;
   }
+  
+  // Ensure we have all required data
+  if (!selectedDate.value || !selectedTime.value) {
+    console.log('Missing date or time');
+    return;
+  }
+  
+  if (!hasSelectedServices.value) {
+    console.log('No services selected');
+    return;
+  }
+  
+  isSummaryModalVisible.value = true;
 };
 
 const closeSummaryModal = () => {
@@ -816,12 +877,12 @@ const totalPrice = computed(() => {
 });
 
 const isFormValid = computed(() => {
-  return (
-    selectedDate.value && 
-    selectedTime.value && 
-    Object.values(selectedServices.value || {}).some(count => count > 0) &&
-    totalPrice.value > 0
-  );
+  const hasValidDate = selectedDate.value instanceof Date;
+  const hasValidTime = typeof selectedTime.value === 'string' && selectedTime.value.length > 0;
+  const hasValidServices = Object.values(selectedServices.value || {}).some(count => count > 0);
+  const hasValidPrice = totalPrice.value > 0;
+
+  return hasValidDate && hasValidTime && hasValidServices && hasValidPrice;
 });
 
 const hasSelectedServices = computed(() => Object.keys(selectedServices.value).length > 0);
@@ -880,17 +941,15 @@ const fetchTreatments = async (service) => {
       return {
         id: doc.id,
         name: data.name || 'Unnamed Treatment',
-        description: data.description || 'No description available',
-        price: data.price || 0,
+        description: data.description || 'Nodescription available',
+                price: data.price || 0,
         imagePath: data.imagePath,
         services: data.services || []
-      };
-    });
+      };    });
 
     console.log(`Fetched ${treatments.value.length} treatments for service:`, service.name);
     
-  } catch (error) {
-    console.error('Error fetching treatments:', error);
+  } catch (error) {    console.error('Error fetchingtreatments:', error);
     treatments.value = []; 
   } finally {
     isLoadingTreatments.value = false;
@@ -1078,8 +1137,8 @@ watch(selectedService, (newService, oldService) => {
 }, { deep: true });
 
 onMounted(() => {
-  const unsubscribe = fetchServices();
-  fetchAppointments();
+  const unsubscribeServices = fetchServices();
+  fetchAppointments(); // This now sets up a real-time listener
 
   const unsubscribeAuth = watch(() => auth.currentUser, (newUser) => {
     if (newUser) {
@@ -1088,10 +1147,17 @@ onMounted(() => {
   });
 
   onUnmounted(() => {
-    unsubscribe();
+    unsubscribeServices();
     unsubscribeAuth();
+    clearAllSelections();
+    closeSummaryModal();
   });
 });
+
+const formatPrice = (price) => {
+  if (typeof price !== 'number') return '0';
+  return price.toLocaleString('en-PH');
+};
 </script>
 
 <style scoped>
@@ -1421,11 +1487,13 @@ h2, h3 {
 }
 
 .service-button {
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: none;
   background: none;
@@ -1435,35 +1503,32 @@ h2, h3 {
 
 .service-image-wrapper {
   width: 100%;
-  height: 240px;
-  overflow: hidden;
-  margin-bottom: 0;
+  height: 200px;
   position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #fff;
 }
 
 .service-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  transition: transform 0.4s ease;
-}
-
-.service-option:hover .service-image {
-  transform: scale(1.08);
+  object-fit: contain; 
+  transition: transform 0.3s ease;
 }
 
 .service-option p {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  margin: 0;
-  padding: 1rem;
+  position: static;
+  margin: 1rem 0 0;
+  padding: 0.5rem;
   font-size: 1.1rem;
   color: #1F2937;
   font-weight: 600;
   text-align: center;
-  background: linear-gradient(to top, #F3F4F6 80%, transparent);
+  background: none;
   transition: all 0.3s ease;
 }
 
@@ -1480,6 +1545,8 @@ h2, h3 {
 .service-option.selected {
   border: 2px solid #8B5CF6;
   background-color: #EEF2FF;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(139, 92, 246, 0.15);
 }
 
 .quantity-badge {
@@ -1719,6 +1786,8 @@ h2, h3 {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: 2rem;
+  max-height: 100vh; /* Added max-height */
 }
 
 .modal {
@@ -1907,13 +1976,13 @@ h2, h3 {
 }
 
 .confirm-button {
-  background-color: #10B981;
+  background-color:#8B5CF6;
   color: white;
   border: none;
 }
 
 .confirm-button:hover {
-  background-color: #059669;
+  background-color:#8B5CF6;
   transform: translateY(-1px);
 }
 
@@ -1966,7 +2035,7 @@ h2, h3 {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background-color: #10B981;
+  background-color: #8B5CF6;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2013,9 +2082,11 @@ h2, h3 {
 .treatment-list-modal {
   width: 90%;
   max-width: 800px;
-  max-height: 90vh;
+  height: 85vh;
+  min-height: 600px;
   display: flex;
   flex-direction: column;
+  padding: 2rem;
 }
 
 .modal-header {
@@ -2033,7 +2104,7 @@ h2, h3 {
 
 .close-button {
   background: none;
-  border: none;
+  border:none;
   cursor: pointer;
   color: #6B7280;
 }
@@ -2041,22 +2112,29 @@ h2, h3 {
 .modal-body {
   flex: 1;
   overflow-y: auto;
+  margin: 0 -2rem;
+  padding: 2rem;
+  min-height: 400px;
 }
 
 .treatments-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  width: 100%;
+  padding: 0; /* Updated padding */
+  min-height: 350px;
 }
 
 .treatment-card {
   background-color: white;
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  height: 450px;
 }
 
 .treatment-card:hover {
@@ -2069,18 +2147,28 @@ h2, h3 {
 }
 
 .treatment-icon-wrapper {
-  height: 150px;
+  width: 100%;
+  height: 280px;
+  position: relative;
   overflow: hidden;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0; /* Updated padding */
 }
 
 .treatment-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+  padding: 10px;
+  background: #fff;
 }
 
 .treatment-content {
-  padding: 1rem;
+  padding: 0.5rem; /* Updated padding */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -2214,16 +2302,11 @@ h2, h3 {
 .confirm-success {
   display: flex;
   align-items: center;
-  color: #10B981;
+  color: #F3F4F6;
 }
 
 .confirm-success svg {
   margin-right: 0.5rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .selected-treatments {
@@ -2262,30 +2345,30 @@ h2, h3 {
 
 .pagination-button {
   padding: 0.5rem 1rem;
-  background-color: #F3F4F6;
-  border: none;
+  background-color: transparent;
+  border: 1px solid #8B5CF6;
   border-radius: 0.375rem;
-  color: #4B5563;
+  color: #8B5CF6;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
+.pagination-button:not(:disabled) {
+  background-color: #8B5CF6;
+  color: white;
+}
+
 .pagination-button:hover:not(:disabled) {
-  background-color: #E5E7EB;
+  background-color: #7C3AED;
 }
 
 .pagination-button:disabled {
-  opacity: 0.5;
+  border-color: #E5E7EB;
+  color: #9CA3AF;
   cursor: not-allowed;
 }
 
-.pagination-info {
-  font-size: 0.875rem;
-  color: #6B7280;
-}
-
-/* Add these styles for the time slots */
 .available-time-slots {
   margin-top: 1.5rem;
 }
@@ -2328,6 +2411,11 @@ h2, h3 {
 .view-mode .time-slot {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.service-image-wrapper:hover .service-image,
+.treatment-icon-wrapper:hover .treatment-image {
+  transform: scale(1.05);
 }
 
 @media (max-width: 1024px) {
@@ -2403,4 +2491,6 @@ h2, h3 {
     justify-content: space-between;
   }
 }
+
 </style>
+

@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import { admin, database } from '../config/firebase.js';
+
 const router = express.Router();
-const { admin, database } = require('../config/firebase');
 
 // Get all appointments
 router.get('/', async (req, res) => {
@@ -81,4 +82,4 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

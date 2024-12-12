@@ -313,7 +313,7 @@
               </div>
               <span class="section-badge">
                 <ClockIcon class="badge-icon" />
-                Last 30 days
+                {{ historyTimeframe }}
               </span>
             </div>
 
@@ -487,32 +487,17 @@ onMounted(async () => {
     const userDoc = await getDoc(doc(database, 'users', auth.currentUser.uid))
     if (userDoc.exists()) {
       currentEmail.value = userDoc.data().email
-      // Load changes history if it exists
-      //This section is removed because we are now fetching the changes using fetchSecurityChanges
-      // const historyDoc = await getDoc(doc(database, 'security_changes', auth.currentUser.uid))
-      // if (historyDoc.exists()) {
-      //   securityChanges.value = historyDoc.data().changes || []
-      // }
     }
   }
 })
 
-// Save changes history to database whenever it updates
-//This section is removed because we are now updating the changes using addChangeToHistory
-// watch(securityChanges, async (newChanges) => {
-//   if (auth.currentUser) {
-//     await setDoc(doc(database, 'security_changes', auth.currentUser.uid), {
-//       changes: newChanges
-//     })
-//   }
-// }, { deep: true })
 
 // Password validation
 const hasMinLength = computed(() => newPassword.value.length >= 8)
 const hasUpperCase = computed(() => /[A-Z]/.test(newPassword.value))
 const hasLowerCase = computed(() => /[a-z]/.test(newPassword.value))
 const hasNumber = computed(() => /[0-9]/.test(newPassword.value))
-const hasSpecial = computed(() => /[!@#$%^&*]/.test(newPassword.value))
+const hasSpecial = computed(() => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]+/.test(newPassword.value))
 
 const isPasswordValid = computed(() => 
   hasMinLength.value && hasUpperCase.value && hasLowerCase.value && 
@@ -690,7 +675,6 @@ const handlePasswordUpdate = async () => {
 
 // Update the lastPasswordChange computed property with proper null checks
 const lastPasswordChange = computed(() => {
-  // Check if securityChanges exists and has items
   if (!securityChanges.value || !Array.isArray(securityChanges.value)) {
     return {
       days: 0,
@@ -698,7 +682,6 @@ const lastPasswordChange = computed(() => {
     }
   }
 
-  // Find the most recent successful password change
   const lastChange = securityChanges.value.find(
     change => change && change.type === 'password' && change.status === 'success'
   )
@@ -713,11 +696,25 @@ const lastPasswordChange = computed(() => {
   const now = new Date()
   const changeDate = new Date(lastChange.timestamp)
   const diffTime = Math.abs(now - changeDate)
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const diffMinutes = Math.floor(diffTime / (1000 * 60))
+  const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
 
-  return {
-    days: diffDays,
-    text: `Last changed ${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+  if (diffMinutes < 60) {
+    return {
+      days: 0,
+      text: `Last changed ${diffMinutes} ${diffMinutes === 1 ? 'minute' : 'minutes'} ago`
+    }
+  } else if (diffHours < 24) {
+    return {
+      days: 0,
+      text: `Last changed ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
+    }
+  } else {
+    return {
+      days: diffDays,
+      text: `Last changed ${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+    }
   }
 })
 
@@ -783,30 +780,28 @@ const formatDate = (timestamp) => {
     // Convert timestamp to Date object
     const date = new Date(timestamp)
     
-    // Format options for Philippine time
+    // Format options without timezone specification to use system timezone
     const options = {
-      timeZone: 'Asia/Manila',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hour12: true
     }
 
-    // Get current date for comparison
     const now = new Date()
     const diffTime = Math.abs(now - date)
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
 
     if (diffDays === 0) {
-      return `Today at ${date.toLocaleTimeString('en-PH', options)}`
+      return `Today at ${date.toLocaleTimeString(undefined, options)}`
     } else if (diffDays === 1) {
-      return `Yesterday at ${date.toLocaleTimeString('en-PH', options)}`
+      return `Yesterday at ${date.toLocaleTimeString(undefined, options)}`
     } else if (diffDays < 30) {
-      return `${diffDays} days ago at ${date.toLocaleTimeString('en-PH', options)}`
+      return `${diffDays} days ago at ${date.toLocaleTimeString(undefined, options)}`
     } else {
-      return date.toLocaleString('en-PH', options)
+      return date.toLocaleString(undefined, options)
     }
   } catch (error) {
     console.error('Date formatting error:', error)
@@ -818,7 +813,8 @@ const formatDate = (timestamp) => {
 const addChangeToHistory = async (change) => {
   try {
     const location = await getCurrentLocation()
-    const timestamp = new Date().getTime()
+    // Use the system time directly without any timezone adjustments
+    const timestamp = Date.now()
     
     const newChange = {
       id: timestamp.toString(),
@@ -858,6 +854,30 @@ const getCurrentLocation = async () => {
     return 'Unknown Location'
   }
 }
+
+const historyTimeframe = computed(() => {
+  if (!securityChanges.value || securityChanges.value.length === 0) {
+    return 'No recent changes'
+  }
+
+  const now = new Date()
+  const latestChange = new Date(Math.max(...securityChanges.value.map(change => change.timestamp)))
+  const oldestChange = new Date(Math.min(...securityChanges.value.map(change => change.timestamp)))
+  const diffTime = Math.abs(now - oldestChange)
+  const diffMinutes = Math.floor(diffTime / (1000 * 60))
+
+  if (diffMinutes < 1) {
+    return 'Last minute'
+  } else if (diffMinutes < 60) {
+    return `Last ${diffMinutes} minutes`
+  } else if (diffMinutes < 1440) { // Less than 24 hours
+    const hours = Math.floor(diffMinutes / 60)
+    return `Last ${hours} ${hours === 1 ? 'hour' : 'hours'}`
+  } else {
+    const days = Math.floor(diffMinutes / 1440)
+    return `Last ${days} ${days === 1 ? 'day' : 'days'}`
+  }
+})
 </script>
 
 <style scoped>
@@ -935,9 +955,7 @@ const getCurrentLocation = async () => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
-}
-
-.icon {
+}.icon {
   width: 18px;
   height: 18px;
   color: white;
@@ -1632,3 +1650,4 @@ input:focus {
   }
 }
 </style>
+

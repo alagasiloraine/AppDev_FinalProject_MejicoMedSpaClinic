@@ -252,6 +252,7 @@ const routes = [
     submenu: [
       { path: '/admin/sales-predictions', name: 'Sales Predictions' },
       { path: '/admin/stock-predictions', name: 'Stock Predictions' },
+    
     ]
   },
 ];

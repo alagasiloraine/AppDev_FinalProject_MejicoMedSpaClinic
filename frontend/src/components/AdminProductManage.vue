@@ -83,7 +83,7 @@
         </div>
         <div class="adminprodmanage-stat-card">
           <div class="adminprodmanage-stat-icon-wrapper">
-            <DollarSign class="adminprodmanage-stat-icon" />
+            <Coins class="adminprodmanage-stat-icon" />
           </div>
           <div class="adminprodmanage-stat-content">
             <p class="adminprodmanage-stat-value">₱{{ totalValue }}</p>
@@ -93,9 +93,9 @@
       </div>
 
       <!-- Active Products Table -->
-      <div class="adminprodmanage-table-container" style="max-width: none; width: 100%;">
+      <div class="adminprodmanage-table-container">
         <div class="adminprodmanage-table-responsive">
-          <table v-if="!loading && filteredProducts.length > 0" class="adminprodmanage-table" style="min-width: 800px;">
+          <table v-if="!loading && filteredProducts.length > 0" class="adminprodmanage-table">
             <thead>
               <tr>
                 <th>Product Name</th>
@@ -286,6 +286,72 @@
         </form>
       </div>
     </div>
+
+    <!-- Archive Confirmation Modal -->
+    <div v-if="showArchiveModal" class="adminprodmanage-modal-overlay" @click="showArchiveModal = false">
+      <div class="adminprodmanage-modal" @click.stop style="max-width: 400px;">
+        <div class="adminprodmanage-modal-header">
+          <h3>Archive Product</h3>
+          <button @click="showArchiveModal = false" class="adminprodmanage-modal-close">
+            <X class="adminprodmanage-modal-close-icon" />
+          </button>
+        </div>
+        <div class="adminprodmanage-modal-content text-center">
+          <div class="mb-6">
+            <Archive class="w-16 h-16 mx-auto text-purple-500 mb-4" />
+            <h4 class="text-lg font-semibold mb-2">Confirm Archive</h4>
+            <p class="text-gray-600">Are you sure you want to archive this product? This action can be reversed later.</p>
+          </div>
+          <div class="flex justify-center gap-4">
+            <button 
+              @click="showArchiveModal = false" 
+              class="adminprodmanage-btn adminprodmanage-btn-secondary"
+            >
+              Cancel
+            </button>
+            <button 
+              @click="confirmArchive" 
+              class="adminprodmanage-btn adminprodmanage-btn-primary"
+            >
+              Archive Product
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restore Confirmation Modal -->
+    <div v-if="showRestoreModal" class="adminprodmanage-modal-overlay" @click="showRestoreModal = false">
+      <div class="adminprodmanage-modal" @click.stop style="max-width: 400px;">
+        <div class="adminprodmanage-modal-header">
+          <h3>Restore Product</h3>
+          <button @click="showRestoreModal = false" class="adminprodmanage-modal-close">
+            <X class="adminprodmanage-modal-close-icon" />
+          </button>
+        </div>
+        <div class="adminprodmanage-modal-content text-center">
+          <div class="mb-6">
+            <RefreshCw class="w-16 h-16 mx-auto text-green-500 mb-4" />
+            <h4 class="text-lg font-semibold mb-2">Confirm Restore</h4>
+            <p class="text-gray-600">Are you sure you want to restore this product? This will move it back to active products.</p>
+          </div>
+          <div class="flex justify-center gap-4">
+            <button 
+              @click="showRestoreModal = false" 
+              class="adminprodmanage-btn adminprodmanage-btn-secondary"
+            >
+              Cancel
+            </button>
+            <button 
+              @click="confirmRestore" 
+              class="adminprodmanage-btn adminprodmanage-btn-primary bg-green-500 hover:bg-green-600"
+            >
+              Restore Product
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -296,7 +362,7 @@ import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, getDoc 
 import { useToast } from 'vue-toastification';
 import { 
   AlertCircle, Package, Search, Filter, 
-  RotateCcw, Plus, Tags, DollarSign, 
+  RotateCcw, Plus, Tags, Coins, 
   Edit2, Archive, RefreshCw, Loader, X, FileText 
 } from 'lucide-vue-next';
 
@@ -307,12 +373,16 @@ const archivedProducts = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const showModal = ref(false);
+const showArchiveModal = ref(false);
+const showRestoreModal = ref(false);
 const searchCategory = ref('');
 const searchProduct = ref('');
 const currentProduct = ref({ name: '', description: '', price: 0, quantity: 0, category: '' });
 const editingProduct = ref(null);
 const activeTab = ref('active');
 const isAdmin = ref(false);
+const productToArchive = ref(null);
+const productToRestore = ref(null);
 
 const checkAdminStatus = async () => {
   try {
@@ -431,32 +501,36 @@ const archiveProduct = async (productId) => {
     toast.error('You do not have permission to archive products');
     return;
   }
+  productToArchive.value = productId;
+  showArchiveModal.value = true;
+};
 
-  if (confirm('Are you sure you want to archive this product?')) {
-    try {
-      const productRef = doc(database, 'products', productId);
-      const productSnap = await getDoc(productRef);
-      
-      if (!productSnap.exists()) {
-        toast.error('Product not found');
-        return;
-      }
-
-      const productData = productSnap.data();
-
-      await setDoc(doc(database, 'archivedProducts', productId), {
-        ...productData,
-        archivedAt: new Date().toISOString(),
-        archivedBy: auth.currentUser?.uid
-      });
-
-      await deleteDoc(productRef);
-      toast.success('Product archived successfully');
-      await fetchProducts();
-    } catch (err) {
-      console.error('Error archiving product:', err);
-      toast.error('Error archiving product: ' + err.message);
+const confirmArchive = async () => {
+  try {
+    const productId = productToArchive.value;
+    const productRef = doc(database, 'products', productId);
+    const productSnap = await getDoc(productRef);
+    
+    if (!productSnap.exists()) {
+      toast.error('Product not found');
+      return;
     }
+
+    const productData = productSnap.data();
+
+    await setDoc(doc(database, 'archivedProducts', productId), {
+      ...productData,
+      archivedAt: new Date().toISOString(),
+      archivedBy: auth.currentUser?.uid
+    });
+
+    await deleteDoc(productRef);
+    toast.success('Product archived successfully');
+    await fetchProducts();
+    showArchiveModal.value = false;
+  } catch (err) {
+    console.error('Error archiving product:', err);
+    toast.error('Error archiving product: ' + err.message);
   }
 };
 
@@ -465,8 +539,13 @@ const restoreProduct = async (productId) => {
     toast.error('You do not have permission to restore products');
     return;
   }
+  productToRestore.value = productId;
+  showRestoreModal.value = true;
+};
 
+const confirmRestore = async () => {
   try {
+    const productId = productToRestore.value;
     const archivedProductRef = doc(database, 'archivedProducts', productId);
     const archivedProductSnap = await getDoc(archivedProductRef);
     
@@ -487,6 +566,7 @@ const restoreProduct = async (productId) => {
     await deleteDoc(archivedProductRef);
     toast.success('Product restored successfully');
     await fetchProducts();
+    showRestoreModal.value = false;
   } catch (err) {
     console.error('Error restoring product:', err);
     toast.error('Error restoring product: ' + err.message);
@@ -519,7 +599,10 @@ const resetFilters = () => {
 };
 
 const formatPrice = (price) => {
-  return Number(price).toFixed(2);
+  return Number(price).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 };
 
 const totalProducts = computed(() => products.value.length);
@@ -528,7 +611,10 @@ const totalValue = computed(() => {
   const total = products.value.reduce((sum, product) => {
     return sum + (Number(product.price) * Number(product.quantity));
   }, 0);
-  return total.toFixed(2);
+  return total.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 });
 
 const filteredProducts = computed(() => {
@@ -557,9 +643,6 @@ onMounted(async () => {
 <style>
 .adminprodmanage-container {
   max-width: 1200px;
-  margin: 0 auto;
-  height: 650px;
-  overflow: hidden; /* Prevent outer scrolling */
 }
 
 .adminprodmanage-title {
@@ -723,12 +806,12 @@ onMounted(async () => {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  padding: 1.5rem;
-  height: calc(100% - 250px);
-  display: flex;
-  flex-direction: column;
-  max-width: none;
-  width: 100%;
+  margin-top: 1.5rem;
+  height: calc(100vh - 400px);
+  overflow: hidden;
+  width: 100% ;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .adminprodmanage-section-title {
@@ -739,26 +822,33 @@ onMounted(async () => {
 }
 
 .adminprodmanage-table-responsive {
+  height: 100%;
   overflow-y: auto;
   overflow-x: auto;
-  flex: 1;
+  margin-right: 8px; /* Add margin for scrollbar */
+  padding-right: 8px; /* Add padding for scrollbar */
 }
 
 .adminprodmanage-table {
   width: 100%;
-  min-width: 800px; /* Ensure minimum width */
+  min-width: 100%; /* Ensure table takes full width */
   border-collapse: separate;
   border-spacing: 0;
 }
 
-.adminprodmanage-table thead {
+.adminprodmanage-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
+  background: #8b5cf6;
+  color: white;
+  font-weight: 500;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
 }
 
 .adminprodmanage-table th {
-  background: #8b5cf6;
   color: white;
   font-weight: 500;
   text-align: left;

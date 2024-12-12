@@ -6,12 +6,21 @@
       <!-- Appointments Panel -->
       <div class="appointments-container">
         <h2 class="appointments-title">Your Scheduled Appointments</h2>
-        <p class="appointments-subtitle">{{ userAppointments.length }} upcoming</p>
+        <p class="appointments-subtitle">
+          <span v-if="loading">Loading appointments...</span>
+          <span v-else>{{ upcomingAppointments.length }} upcoming</span>
+        </p>
         
-        <div class="appointments-list">
-          <div v-for="appointment in userAppointments" :key="appointment.id" class="appointment-card">
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+          <AlertCircleIcon class="h-5 w-5" />
+          {{ error }}
+        </div>
+        
+        <div v-else class="appointments-list">
+          <div v-for="appointment in upcomingAppointments" :key="appointment.id" class="appointment-card">
             <div class="appointment-header">
-              <span class="service-tag" :style="{ backgroundColor: getServiceTagColor(appointment.service) }">{{ appointment.service }}</span>
+              <span class="service-tag" :style="{ backgroundColor: appointment.color }">{{ appointment.service }}</span>
               <span class="appointment-time">{{ formatTime(appointment.time) }}</span>
             </div>
             <h3 class="appointment-date">{{ formatDate(appointment.date) }}</h3>
@@ -22,6 +31,12 @@
                 Approved
               </div>
             </div>
+          </div>
+          
+          <!-- Empty State -->
+          <div v-if="!loading && upcomingAppointments.length === 0" class="empty-state">
+            <CalendarIcon class="h-12 w-12" />
+            <p>No upcoming appointments</p>
           </div>
         </div>
       </div>
@@ -55,18 +70,20 @@
               'other-month': !day.currentMonth,
               'selected': isSelected(day.date),
               'today': isToday(day.date),
-              'has-appointment': hasAppointments(day.date)
+              'has-appointment': hasAppointments(day.date),
+              'past-appointment': isPastAppointment(day.date)
             }"
-            @click="selectDate(day.date)"
+            @click="openAppointmentsModal(day.date)"
           >
             <span class="day-number">{{ day.dayNumber }}</span>
             <div class="appointment-labels">
               <div 
-                v-if="hasAppointments(day.date)" 
+                v-for="appointment in getAppointmentsForDay(day.date)"
+                :key="appointment.id"
                 class="appointment-label"
-                :style="{ backgroundColor: getAppointmentColor(day.date) }"
+                :style="{ backgroundColor: appointment.color }"
               >
-                {{ truncateText(getAppointmentLabel(day.date), 8) }}
+                {{ truncateText(appointment.service, 8) }}
               </div>
             </div>
           </div>
@@ -75,43 +92,150 @@
     </div>
 
     <FooterComponent />
+
+    <!-- Appointment Modal -->
+    <div v-if="isModalOpen" class="modal-overlay" @click="closeModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Appointments for {{ formattedModalDate }}</h2>
+          <button class="close-button" @click="closeModal">
+            <XIcon class="h-6 w-6" />
+          </button>
+        </div>
+        <div class="modal-appointments-list">
+          <div v-for="appointment in selectedDayAppointments" :key="appointment.id" 
+               class="modal-appointment-item">
+            <div class="appointment-time-column">
+              <span class="time">{{ formatTime(appointment.time) }}</span>
+              <span class="duration">{{ appointment.duration }} min</span>
+            </div>
+            <div class="appointment-details">
+              <div class="service-tag-wrapper">
+                <span class="service-tag" :style="{ backgroundColor: appointment.color }">
+                  {{ appointment.service }}
+                </span>
+              </div>
+              <div class="appointment-status">
+                <div class="status-indicator"></div>
+                <span>Confirmed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="selectedDayAppointments.length === 0" class="no-appointments">
+          <CalendarIcon class="h-16 w-16" />
+          <p>No appointments scheduled for this day</p>
+          <span>The schedule is clear!</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ChevronLeftIcon, ChevronRightIcon, CheckCircleIcon, ClockIcon, XIcon } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { 
+  ChevronLeftIcon, 
+  ChevronRightIcon, 
+  CheckCircleIcon,
+  AlertCircleIcon,
+  CalendarIcon,
+  XIcon
+} from 'lucide-vue-next'
 import Navbar from './Navbar.vue'
 import FooterComponent from './Footer.vue'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { database } from '../firebase' // Ensure you have this firebase config file
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot,
+  orderBy 
+} from 'firebase/firestore'
+import { database } from '../firebase'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const currentDate = ref(new Date())
 const selectedDate = ref(null)
 const userAppointments = ref([])
+const loading = ref(true)
+const error = ref(null)
 
-// Fetch approved appointments from Firestore
-onMounted(() => {
-  const appointmentsRef = collection(database, 'appointments')
-  const q = query(
-    appointmentsRef,
-    where('status', '==', 'approved')
-  )
-  
-  onSnapshot(q, (snapshot) => {
-    userAppointments.value = snapshot.docs.map(doc => {
-      const data = doc.data()
-      return {
-        id: doc.id,
-        ...data,
-        date: data.date, // Assuming date is stored as string "YYYY-MM-DD"
-        time: data.time, // Assuming time is stored as string "HH:mm"
-        service: Array.isArray(data.services) ? data.services[0] : (data.service || 'Appointment'),
-        duration: data.duration || 60,
-        color: data.color || '#8B5CF6'
+const isModalOpen = ref(false);
+const selectedModalDate = ref(null);
+const selectedDayAppointments = ref([]);
+
+const fetchAppointments = async (userId) => {
+  try {
+    const appointmentsRef = collection(database, 'appointments')
+    const q = query(
+      appointmentsRef,
+      where('userId', '==', userId)
+    )
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      loading.value = false
+      userAppointments.value = snapshot.docs
+        .map(doc => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            ...data,
+            date: data.date,
+            time: data.time,
+            service: Array.isArray(data.services) ? data.services[0] : 'Appointment',
+            duration: data.duration || 60,
+            color: getServiceTagColor(Array.isArray(data.services) ? data.services[0] : 'Appointment')
+          }
+        })
+        .sort((a, b) => a.date.localeCompare(b.date))
+    }, (err) => {
+      console.error('Error fetching appointments:', err)
+      if (err.code === 'permission-denied') {
+        error.value = 'You do not have permission to view these appointments.'
+      } else if (err.code === 'failed-precondition') {
+        error.value = 'Please try again in a moment while we set up the database.'
+      } else {
+        error.value = 'Unable to load appointments. Please try again later.'
       }
+      loading.value = false
     })
+
+    onUnmounted(() => {
+      unsubscribe()
+    })
+  } catch (err) {
+    console.error('Error setting up appointments listener:', err)
+    error.value = 'Unable to load appointments. Please try again later.'
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  const auth = getAuth()
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      fetchAppointments(user.uid)
+    } else {
+      error.value = 'Please sign in to view your appointments'
+      loading.value = false
+      userAppointments.value = []
+    }
+  })
+
+  onUnmounted(() => {
+    unsubscribe()
+  })
+})
+
+const upcomingAppointments = computed(() => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  return userAppointments.value.filter(apt => {
+    const aptDate = new Date(apt.date)
+    aptDate.setHours(0, 0, 0, 0)
+    return aptDate >= today
   })
 })
 
@@ -121,10 +245,13 @@ const truncateText = (text, maxLength) => {
 }
 
 const getAppointmentColor = (date) => {
-  const appointment = userAppointments.value.find(apt => 
-    apt.date === formatDateForComparison(date)
-  )
-  return appointment ? getServiceTagColor(appointment.service) : '#8B5CF6'
+  const dateStr = formatDateForComparison(date)
+  const appointment = userAppointments.value.find(apt => {
+    const aptDate = new Date(apt.date)
+    const formattedAptDate = formatDateForComparison(aptDate)
+    return formattedAptDate === dateStr
+  })
+  return appointment ? appointment.color : '#8B5CF6'
 }
 
 const currentMonthName = computed(() => {
@@ -207,16 +334,35 @@ const isToday = (date) => {
 }
 
 const formatDateForComparison = (date) => {
-  return date.toISOString().split('T')[0]
+  const d = new Date(date)
+  d.setMinutes(d.getMinutes() + d.getTimezoneOffset())
+  return d.toISOString().split('T')[0]
 }
 
 const hasAppointments = (date) => {
-  return userAppointments.value.some(apt => apt.date === formatDateForComparison(date))
+  const dateStr = formatDateForComparison(date)
+  return userAppointments.value.some(apt => {
+    const aptDate = new Date(apt.date)
+    const formattedAptDate = formatDateForComparison(aptDate)
+    return formattedAptDate === dateStr
+  })
 }
 
-const getAppointmentLabel = (date) => {
-  const appointment = userAppointments.value.find(apt => apt.date === formatDateForComparison(date))
-  return appointment ? appointment.service : ''
+const getAppointmentsForDay = (date) => {
+  const dateStr = formatDateForComparison(date)
+  return userAppointments.value.filter(apt => {
+    const aptDate = new Date(apt.date)
+    const formattedAptDate = formatDateForComparison(aptDate)
+    return formattedAptDate === dateStr
+  })
+}
+
+const isPastAppointment = (date) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const checkDate = new Date(date)
+  checkDate.setHours(0, 0, 0, 0)
+  return hasAppointments(date) && checkDate < today
 }
 
 const formatTime = (timeStr) => {
@@ -252,19 +398,43 @@ const formatDate = (dateStr) => {
 }
 
 const getServiceTagColor = (service) => {
-  const colors = {
-    'Nail Care': '#8B5CF6', // Purple
-    'Check Up': '#EC4899', // Pink
-    'Checkup': '#EC4899', // Pink (alternative spelling)
-    'Massage': '#10B981', // Green
-    'Hair Care': '#3B82F6', // Blue
-    'Facial Treatment': '#F59E0B', // Amber
-    'Spa Treatment': '#14B8A6', // Teal
-    'Dental Care': '#EF4444', // Red
-    'Eye Exam': '#6366F1'  // Indigo
-  }
-  return colors[service] || '#8B5CF6' // Default to purple if service not found
-}
+  const colors = [
+    '#8B5CF6', '#EC4899', '#10B981', '#3B82F6', '#F59E0B',
+    '#14B8A6', '#EF4444', '#6366F1', '#D946EF', '#0EA5E9',
+    '#84CC16', '#F97316'
+  ];
+
+  const stringToNumber = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
+  };
+
+  const index = stringToNumber(service) % colors.length;
+  return colors[index];
+};
+
+const openAppointmentsModal = (date) => {
+  selectedModalDate.value = date;
+  selectedDayAppointments.value = getAppointmentsForDay(date);
+  isModalOpen.value = true;
+};
+
+const closeModal = () => {
+  isModalOpen.value = false;
+};
+
+const formattedModalDate = computed(() => {
+  if (!selectedModalDate.value) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(selectedModalDate.value);
+});
 </script>
 
 <style scoped>
@@ -277,12 +447,12 @@ const getServiceTagColor = (service) => {
 }
 
 .calendar-layout {
-  max-width: 1600px; /* Increased from 1400px */
+  max-width: 1600px;
   margin: 2rem auto;
-  padding: 0 4rem; /* Increased padding for better spacing */
+  padding: 0 4rem;
   display: grid;
-  grid-template-columns: 380px 1fr; /* Slightly wider sidebar */
-  gap: 3rem; /* Increased gap between columns */
+  grid-template-columns: 380px 1fr;
+  gap: 3rem;
   align-items: start;
 }
 
@@ -349,8 +519,10 @@ const getServiceTagColor = (service) => {
 .appointment-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .service-tag {
@@ -359,13 +531,16 @@ const getServiceTagColor = (service) => {
   color: white;
   font-size: 0.75rem;
   font-weight: 500;
+  max-width: 70%;
+  word-break: break-word;
+  line-height: 1.2;
 }
-
 
 .appointment-time {
   color: #4F3D7C;
   font-weight: 500;
   font-size: 0.875rem;
+  white-space: nowrap;
 }
 
 .appointment-date {
@@ -386,7 +561,7 @@ const getServiceTagColor = (service) => {
   gap: 0.5rem;
 }
 
-.action-btn {
+.status-badge {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -394,29 +569,21 @@ const getServiceTagColor = (service) => {
   border-radius: 0.5rem;
   font-size: 0.75rem;
   font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.action-btn.reschedule {
-  background: #F3F0FF;
-  color: #4F3D7C;
-}
-
-.action-btn.cancel {
-  background: #FEE2E2;
-  color: #DC2626;
+.status-badge.approved {
+  background: #ECFDF5;
+  color: #059669;
 }
 
 .calendar-container {
   background: white;
   border-radius: 1.5rem;
-  padding: 2rem; /* Increased padding */
+  padding: 2rem;
   box-shadow: 0 10px 30px rgba(79, 61, 124, 0.12);
   width: 100%;
-  max-width: 1000px; /* Increased from 850px */
-  margin: 100px auto 0; /* Added auto horizontal margins */
+  max-width: 1000px;
+  margin: 100px auto 0;
 }
 
 .calendar-header {
@@ -482,14 +649,15 @@ const getServiceTagColor = (service) => {
   background: white;
   border-radius: 0.75rem;
   border: 1px solid rgba(79, 61, 124, 0.08);
-  padding: 0.35rem;
+  padding: 0.5rem 0.35rem; /* Updated padding */
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.25rem;
   transition: all 0.2s ease;
   position: relative;
+  overflow: hidden;
 }
 
 .day-number {
@@ -526,8 +694,11 @@ const getServiceTagColor = (service) => {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.15rem;
   margin-top: auto;
+  max-height: calc(100% - 1.5rem);
+  overflow-y: auto;
+  padding: 0; /* Updated padding */
 }
 
 .appointment-label {
@@ -539,23 +710,311 @@ const getServiceTagColor = (service) => {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
-  line-height: 1;
+  line-height: 1.2;
   max-width: 100%;
+  margin: 0;
+  display: block;
+  word-break: break-word;
+  min-height: 1.5em;
 }
 
-.status-badge {
+.error-message {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: #FEE2E2;
+  color: #DC2626;
   border-radius: 0.5rem;
-  font-size: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #6B7280;
+  text-align: center;
+}
+
+.empty-state svg {
+  color: #D1D5DB;
+  margin-bottom: 1rem;
+}
+
+.calendar-day.past-appointment {
+  opacity: 0.5;
+  background-color: #f3f4f6;
+  pointer-events: none;
+}
+
+.calendar-day.past-appointment .appointment-label {
+  background-color: #9ca3af !important;
+}
+
+.calendar-day:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 1.5rem;
+  width: 90%;
+  max-width: 550px;
+  max-height: 85vh;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease-out;
+}
+
+.modal-header {
+  background: linear-gradient(135deg, #4F3D7C 0%, #6366F1 100%);
+  padding: 2rem;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  padding-right: 3rem;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.close-button {
+  position: relative;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 0.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.modal-appointments-list {
+  padding: 2rem;
+  overflow-y: auto;
+  max-height: calc(85vh - 6rem);
+}
+
+.modal-appointment-item {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 1rem;
+  background-color: #F8F7FF;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(79, 61, 124, 0.08);
+}
+
+.appointment-item {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 1.5rem;
+  background-color: #F8F7FF;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(79, 61, 124, 0.08);
+}
+
+.appointment-time-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.time {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4F3D7C;
+  letter-spacing: -0.02em;
+}
+
+.duration {
+  font-size: 0.875rem;
+  color: #6B7280;
   font-weight: 500;
 }
 
-.status-badge.approved {
-  background: #ECFDF5;
+.appointment-details {
+  margin-left: auto;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.service-tag-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.service-tag {
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.appointment-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
   color: #059669;
+  font-weight: 500;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #059669;
+  position: relative;
+}
+
+.status-indicator::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  background-color: #059669;
+  opacity: 0.2;
+  animation: pulse 2s infinite;
+}
+
+.no-appointments {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: #6B7280;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.no-appointments svg {
+  color: #E5E7EB;
+  margin-bottom: 1rem;
+}
+
+.no-appointments p {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #4F3D7C;
+  margin-bottom: 0.5rem;
+}
+
+.no-appointments span {
+  font-size: 0.875rem;
+  color: #6B7280;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.2;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .modal-header {
+    padding: 1.5rem;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+  }
+
+  .modal-appointments-list {
+    padding: 1.25rem;
+  }
+
+  .modal-appointment-item {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .appointment-time-column {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 @media (max-width: 1400px) {
@@ -566,31 +1025,7 @@ const getServiceTagColor = (service) => {
   }
 }
 
-@media (max-width: 768px) {
-  .calendar-layout {
-    padding: 0 1rem;
-    margin-top: 2rem;
-  }
-}
-
-@media (max-width: 1200px) {
-  .calendar-layout {
-    grid-template-columns: 1fr;
-    max-width: 850px;
-  }
-
-  .appointments-container {
-    order: 2;
-    height: auto;
-    max-height: 500px;
-  }
-
-  .calendar-container {
-    order: 1;
-  }
-}
-
-@media (max-width: 768px) {
+@media(max-width: 768px) {
   .calendar-layout {
     padding: 0 1rem;
     margin-top: 100px;
@@ -644,5 +1079,21 @@ const getServiceTagColor = (service) => {
     font-size: 0.55rem;
     padding: 0.1rem 0.2rem;
   }
+
+  .modal-content {
+    padding: 1.5rem;
+  }
+
+  .appointment-time {
+    font-size: 1rem;
+    width: 80px;
+  }
+
+  .appointment-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
 }
 </style>
+

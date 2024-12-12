@@ -12,7 +12,8 @@ import ClientCanlendar from '../components/ClientCanlendar.vue';
 
 // Export the routes array separately
 export const userRoutes = [
-  { path: '/landing', name: 'Landing', component: Landing },
+  { path: '/', name: 'Landing', component: Landing },
+  { path: '/landing', name: 'Landing', component: Landing }, // Add this line
   { path: '/login', name: 'Login', component: Login },
   { path: '/register', name: 'Register', component: Register },
   { path: '/home', name: 'Homepage', component: Homepage },

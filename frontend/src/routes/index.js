@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { getCurrentUser, isAdmin } from '../services/authService';
 import { userRoutes } from './userRoutes'; // Import user routes
-import { adminRoutes } from './adminRoutes'; // Import admin routes
+import { adminRoutes } from './adminRoutes'; 
 
 // Modify userRoutes to set Landing as the root route and Homepage as authenticated
 const modifiedUserRoutes = userRoutes.map(route => {

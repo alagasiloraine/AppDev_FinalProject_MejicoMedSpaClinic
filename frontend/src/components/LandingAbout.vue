@@ -16,13 +16,14 @@
           <div class="story-card">
             <div class="story-card-content">
               <p>
-                Mejico Medical Spa was founded in 2010 with a vision to blend traditional Mexican healing practices with modern medical aesthetics.
-                Our journey began in the heart of Mexico City, where we saw an opportunity to create a sanctuary of wellness and beauty that honors
-                our rich cultural heritage while embracing cutting-edge technologies.
+                Mejico Medical Spa, established in 1990 by Dra. Maria Gwendulyn Libunao Mejico, is dedicated to enhancing natural beauty through 
+                advanced technology and personalized care. Our certified team specializes in safe, effective treatments, including skin rejuvenation 
+                and body contouring, using only FDA-approved technologies. With a commitment to professionalism and innovation, we provide customized 
+                solutions designed to boost confidence and well-being.
                 <br><br>
-                Mejico Medical Spa was founded in 2010 with a vision to blend traditional Mexican healing practices with modern medical aesthetics.
-                Our journey began in the heart of Mexico City, where we saw an opportunity to create a sanctuary of wellness and beauty that honors
-                our rich cultural heritage while embracing cutting-edge technologies.
+                Located in Calapan City and Pinamalayan, our clinics offer a relaxing, state-of-the-art environment where client safety is our top priority. 
+                We adhere to strict hygiene protocols to ensure a secure and comfortable experience for every visit. At Mejico Medical Spa, we treat every 
+                client like family, delivering exceptional care and innovative beauty solutions to help you look and feel your best.
               </p>
             </div>
             <div class="founder-card-gradient"></div>
@@ -42,13 +43,14 @@
           <div class="founder-card">
             <div class="founder-card-content">
               <p>
-                Mejico Medical Spa was founded in 2010 with a vision to blend traditional Mexican healing practices with modern medical aesthetics.
-                Our journey began in the heart of Mexico City, where we saw an opportunity to create a sanctuary of wellness and beauty that honors
-                our rich cultural heritage while embracing cutting-edge technologies.
+                Dra. Ma. Gwendulyn Libunao Mejico, founder of Mejico Medical Spa and co-founder of Medical Mission Group Hospital (MMG) in Calapan 
+                City, is a renowned dermatologist with over 30 years of experience. Born on October 20, 1961, her passion for dermatology has led 
+                her to provide advanced skin treatments, blending science and innovation to deliver personalized care. Her expertise in anti-aging, 
+                acne management, and non-invasive procedures has made her a trusted name in beauty and wellness.
                 <br><br>
-                Mejico Medical Spa was founded in 2010 with a vision to blend traditional Mexican healing practices with modern medical aesthetics.
-                Our journey began in the heart of Mexico City, where we saw an opportunity to create a sanctuary of wellness and beauty that honors
-                our rich cultural heritage while embracing cutting-edge technologies.
+                Beyond aesthetics, Dra. Mejico has significantly contributed to healthcare in Oriental Mindoro through her role in establishing MMG. 
+                This leading hospital embodies her commitment to accessible and compassionate care for the community. At 63, Dra. Mejico continues to 
+                inspire with her dedication to enhancing lives through medicine and beauty.
               </p>
             </div>
             <div class="founder-card-gradient"></div>
@@ -183,7 +185,7 @@ const content = ref([
 }
 
 .story-text p {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.6;
   text-align: justify;
   margin-left: 15px;
@@ -230,7 +232,7 @@ const content = ref([
 }
 
 .founder-text p {
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.6;
   text-align: justify;
   color: #000000;

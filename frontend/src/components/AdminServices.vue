@@ -73,6 +73,7 @@
               :src="service.imagePath" 
               alt="Service image"
               class="adminservice-table-image"
+              @error="handleImageError"
             />
             <div v-else class="adminservice-no-image">
               <ImageIcon size="24" class="adminservice-placeholder-icon" />
@@ -110,7 +111,7 @@
     </div>
 
     <div class="adminservice-pagination">
-      <span>Showing {{ paginatedServices.length }} of {{ totalServices }} services</span>
+      <span>Showing {{ Math.min(currentPage * itemsPerPage, totalServices) }} of {{ totalServices }} services</span>
       <div class="adminservice-pagination-buttons">
         <button 
           @click="prevPage" 
@@ -243,7 +244,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { database } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle2, XCircle, Clock, Filter, X, Check, Clipboard, ImageIcon, UploadCloud, Loader } from 'lucide-vue-next';
@@ -257,7 +258,7 @@ const durationFilter = ref('');
 const showArchived = ref(false);
 const currentPage = ref(1);
 const itemsPerPage = 4;
-const loading = ref(true); // Added loading state
+const loading = ref(true);
 
 const notification = ref({ show: false, message: '', type: '', loading: false });
 const selectedFile = ref(null);
@@ -322,7 +323,7 @@ const addService = async () => {
       id: customId,
       archived: false,
       archivedAt: null,
-      imagePath // This will now contain the correct path
+      imagePath
     };
 
     const serviceRef = await addDoc(collection(database, 'services'), serviceData);
@@ -414,18 +415,17 @@ const toggleArchiveService = async (service) => {
       archivedAt: newArchivedStatus ? new Date().toISOString() : null
     });
     
-    const index = services.value.findIndex(s => s.id === service.id);
-    services.value[index] = { 
-      ...service, 
-      archived: newArchivedStatus,
-      archivedAt: newArchivedStatus ? new Date().toISOString() : null
-    };
+    // Remove the service from the current list
+    services.value = services.value.filter(s => s.id !== service.id);
     
     showNotification(
       newArchivedStatus 
         ? 'Service archived successfully.'
         : 'Service restored successfully.'
     );
+
+    // Refresh the services list to show the updated data
+    await fetchServices();
   } catch (error) {
     console.error('Failed to update archive status:', error);
     showNotification('Failed to update archive status: ' + error.message, 'error');
@@ -433,25 +433,32 @@ const toggleArchiveService = async (service) => {
 };
 
 const fetchServices = async () => {
-  loading.value = true; // Set loading to true before fetching
-  try{
+  loading.value = true;
+  try {
     const servicesCollection = collection(database, 'services');
     const serviceSnapshot = await getDocs(servicesCollection);
-    services.value = serviceSnapshot.docs.map(doc => ({
-      id: doc.data().id || doc.id,
-      name: doc.data().name,
-      duration: doc.data().duration || 60,
-      archived: doc.data().archived || false,
-      archivedAt: doc.data().archivedAt || null,
-      imagePath: doc.data().imagePath || null
-    }));
+    services.value = serviceSnapshot.docs
+      .map(doc => ({
+        id: doc.data().id || doc.id,
+        name: doc.data().name,
+        duration: doc.data().duration || 60,
+        archived: doc.data().archived || false,
+        archivedAt: doc.data().archivedAt || null,
+        imagePath: doc.data().imagePath || null
+      }))
+      .filter(service => service.archived === showArchived.value);
   } catch (error) {
     console.error('Error fetching services:', error);
     showNotification('Failed to fetch services: ' + error.message, 'error');
   } finally {
-    loading.value = false; // Set loading to false after fetching, regardless of success or failure
+    loading.value = false;
   }
 };
+
+watch(showArchived, () => {
+  currentPage.value = 1;
+  fetchServices();
+});
 
 onMounted(() => {
   fetchServices();
@@ -461,8 +468,8 @@ const filteredServices = computed(() => {
   return services.value.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchQuery.value.toLowerCase());
     const matchesDuration = !durationFilter.value || service.duration === parseInt(durationFilter.value);
-    const matchesArchiveStatus = service.archived === showArchived.value;
-    return matchesSearch && matchesDuration && matchesArchiveStatus;
+    // Remove matchesArchiveStatus since we're now filtering in fetchServices
+    return matchesSearch && matchesDuration;
   });
 });
 
@@ -517,21 +524,24 @@ const handleImageUpload = (event) => {
 
   selectedFile.value = file;
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    imagePreview.value = e.target.result;
-  };
-  reader.onerror = () => {
-    showNotification('Failed to read image file', 'error');
-    selectedFile.value = null;
-    imagePreview.value = null;
-  };
-  reader.readAsDataURL(file);
+  // Create object URL for preview
+  imagePreview.value = URL.createObjectURL(file);
 };
 
 const triggerFileInput = () => {
   fileInput.value.click();
 };
+
+const handleImageError = (event) => {
+  event.target.src = '/placeholder.svg?height=70&width=70';
+};
+
+// Cleanup function for object URLs
+onUnmounted(() => {
+  if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(imagePreview.value);
+  }
+});
 </script>
 
 <style scoped>
@@ -955,7 +965,7 @@ const triggerFileInput = () => {
   margin-bottom: 0.5rem;
   color: #374151;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight:500;
 }
 
 .adminservice-input-wrapper {

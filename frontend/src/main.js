@@ -29,7 +29,8 @@ auth.onAuthStateChanged(async (user) => {
       }
       
       if (router.currentRoute.value.path === '/login' || 
-          router.currentRoute.value.path === '/landing') {
+          router.currentRoute.value.path === '/landing' ||
+          router.currentRoute.value.path === '/') {
         router.push(route);
       }
     } else {
@@ -38,7 +39,8 @@ auth.onAuthStateChanged(async (user) => {
         appMounted = true;
       }
       if (router.currentRoute.value.path !== '/login' && 
-          router.currentRoute.value.path !== '/landing') {
+          router.currentRoute.value.path !== '/landing' &&
+          router.currentRoute.value.path !== '/') {
         router.push('/landing');
       }
     }
@@ -50,4 +52,3 @@ auth.onAuthStateChanged(async (user) => {
     }
   }
 });
-

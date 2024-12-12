@@ -94,6 +94,7 @@ export const adminRoutes = [
     component: AdminSalesPredictions, 
     meta: adminMeta 
   },
+
   { 
     path: '/admin/stock-predictions', 
     name: 'AdminStockPredictions',

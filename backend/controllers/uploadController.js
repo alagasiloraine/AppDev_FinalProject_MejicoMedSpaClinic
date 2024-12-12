@@ -1,5 +1,9 @@
-const multer = require('multer');
-const path = require('path');
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
@@ -27,15 +31,15 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({ 
+export const upload = multer({ 
   storage: storage,
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
   }
-});
+}).single('image');
 
-const uploadImage = async (req, res) => {
+export async function uploadImage(req, res) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -55,10 +59,10 @@ const uploadImage = async (req, res) => {
       details: error.message 
     });
   }
-};
+}
 
 // New function for uploading treatment images
-const uploadTreatmentImage = async (req, res) => {
+export async function uploadTreatmentImage(req, res) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -79,11 +83,5 @@ const uploadTreatmentImage = async (req, res) => {
       details: error.message 
     });
   }
-};
-
-module.exports = {
-  upload: upload.single('image'),
-  uploadImage,
-  uploadTreatmentImage
-};
+}
 

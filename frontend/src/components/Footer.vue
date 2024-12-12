@@ -25,8 +25,9 @@
         <div>
           <h3 class="footer-title">MEJICO MedSpa Clinic</h3>
           <p class="footer-description">
-            Here you can use rows and columns to organize your footer content. Lorem ipsum dolor sit amet,
-            consectetur adipisicing elit.
+            Mejico MedSpa Clinic is committed to enhancing beauty and wellness through 
+            state-of-the-art medical aesthetics and therapeutic treatments. We aim to 
+            provide a serene and rejuvenating experience for our valued clients.
           </p>
         </div>
         <div>
@@ -41,10 +42,26 @@
         <div>
           <h3 class="footer-title">USEFUL LINKS</h3>
           <ul class="footer-list">
-            <li>Your Account</li>
-            <li>Become an Affiliate</li>
-            <li>Booking Rates</li>
-            <li>Help</li>
+            <li>
+              <router-link to="/about" class="footer-link">
+                About
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/clientappointment" class="footer-link">
+                Appointments
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/calendar" class="footer-link">
+                View Calendar
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/contact" class="footer-link">
+                Contact Us
+              </router-link>
+            </li>
           </ul>
         </div>
         <div>
@@ -84,15 +101,15 @@ const currentYear = ref(new Date().getFullYear())
 <style scoped>
 .footer {
   width: 100%;
-  background-color: #382d6e; /* Use the same color for the entire footer */
+  background-color: #382d6e;
   color: white;
 }
 
 .footer-top,
 .footer-middle,
 .footer-bottom {
-  background-color: #382d6e; /* Same color for all sections */
-  max-width: 90%; /* Adjust width as needed */
+  background-color: #382d6e;
+  max-width: 90%;
   margin: 0 auto;
 }
 
@@ -116,30 +133,23 @@ const currentYear = ref(new Date().getFullYear())
 }
 
 .icon {
-  width: 1.75rem; /* Increase symbol size */
+  width: 1.75rem;
   height: 1.75rem;
   cursor: pointer;
-
-  /* Center symbol inside circle */
   display: flex;
   align-items: center;
   justify-content: center;
-
-  /* Circle styling */
   background-color: #8573df;
   border-radius: 30%;
-  padding: 0.3rem; /* Reduce padding to make symbol more prominent */
+  padding: 0.3rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  
-  /* Smooth transition with easing */
   transition: transform 0.4s ease, background-color 0.4s ease, box-shadow 0.4s ease;
 }
 
-/* Hover effect */
 .icon:hover {
-  background-color: #6a56c1; /* Slightly darker shade on hover */
-  transform: scale(1.1) translateY(-2px); /* Scale up and move slightly up */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Increase shadow on hover */
+  background-color: #6a56c1;
+  transform: scale(1.1) translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .footer-middle {
@@ -165,10 +175,10 @@ const currentYear = ref(new Date().getFullYear())
   font-weight: bold;
   font-size: 16px;
   margin-bottom: 1rem;
-  padding-bottom: 0.3rem; /* Space between text and underline */
-  display: inline-block; /* Allows control of underline width */
-  border-bottom: 2px solid rgba(133, 115, 223, 0.7); /* Semi-transparent #8573df */
-  width: fit-content; /* Sets underline width to text content only */
+  padding-bottom: 0.3rem;
+  display: inline-block;
+  border-bottom: 2px solid rgba(133, 115, 223, 0.7);
+  width: fit-content;
 }
 
 .footer-description,
@@ -211,5 +221,17 @@ const currentYear = ref(new Date().getFullYear())
   text-align: center;
   padding: 1rem;
   font-size: 0.875rem;
+}
+
+.footer-link {
+  color: white;
+  text-decoration: none;
+  transition: color 0.3s ease, transform 0.3s ease;
+  display: inline-block;
+}
+
+.footer-link:hover {
+  color: #8573df;
+  transform: translateX(5px);
 }
 </style>

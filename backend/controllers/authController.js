@@ -1,8 +1,8 @@
-const { getAuth } = require('firebase-admin/auth');
-const database = require('../config/firebase'); // Firestore config
+import { getAuth } from 'firebase-admin/auth';
+import { database } from '../config/firebase.js';
 
 // User registration
-exports.register = async (req, res) => {
+export async function register(req, res) {
     const { email, password, role } = req.body;
 
     try {
@@ -17,15 +17,15 @@ exports.register = async (req, res) => {
         // Send email using your preferred email service (e.g., nodemailer)
         // await sendVerificationEmail(email, link); // Uncomment and implement this function
 
-        res.status(201).send('User registered successfully, verification email sent');
+        res.status(201).json({ message: 'User registered successfully, verification email sent' });
     } catch (error) {
         console.error('Error creating user:', error.message);
-        res.status(500).send('Error creating user: ' + error.message);
+        res.status(500).json({ error: 'Error creating user', details: error.message });
     }
-};
+}
 
 // User login
-exports.login = async (req, res) => {
+export async function login(req, res) {
     const { email, password } = req.body;
 
     try {
@@ -43,22 +43,20 @@ exports.login = async (req, res) => {
         console.error('Login error: ', error.message);
         return res.status(401).json({ message: 'Invalid email or password' });
     }
-};
-
+}
 
 // Reset password
-exports.resetPassword = async (req, res) => {
+export async function resetPassword(req, res) {
     const { email } = req.body;
 
     try {
         const link = await getAuth().generatePasswordResetLink(email);
         // Send email using your preferred email service (e.g., nodemailer)
         // await sendResetEmail(email, link); // Uncomment and implement this function
-        res.status(200).send('Password reset email sent');
+        res.status(200).json({ message: 'Password reset email sent' });
     } catch (error) {
         console.error('Error sending reset link:', error.message);
-        res.status(500).send('Error sending reset link: ' + error.message);
+        res.status(500).json({ error: 'Error sending reset link', details: error.message });
     }
-};
-
+}
 

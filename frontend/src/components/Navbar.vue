@@ -11,7 +11,9 @@
         <button
           class="dropdown-toggle"
           @click="toggleDropdown"
-          :class="{ active: isServicesActive }"
+          :class="{ 
+            active: isServicesActive || isDropdownOpen 
+          }"
         >
           Services
           <ChevronDown
@@ -24,10 +26,10 @@
           class="dropdown-menu"
           :class="{ 'dropdown-menu-active': isDropdownOpen }"
         >
-          <router-link to="/clientappointment" class="dropdown-item" active-class="active" @click="closeDropdown">
+          <router-link to="/clientappointment" class="dropdown-item" :class="{ 'dropdown-item-active': $route.path === '/clientappointment' }" @click="closeDropdown">
             <Calendar size="16" class="icon" /> Appointments
           </router-link>
-          <router-link to="/calendar" class="dropdown-item" active-class="active" @click="closeDropdown">
+          <router-link to="/calendar" class="dropdown-item" :class="{ 'dropdown-item-active': $route.path === '/calendar' }" @click="closeDropdown">
             <ClipboardList size="16" class="icon" /> View Calendar
           </router-link>
         </div>
@@ -341,6 +343,20 @@ nav {
   background-color: rgba(106, 79, 179, 0.1);
 }
 
+.dropdown-toggle.active {
+  color: #6a4fb3;
+}
+
+.dropdown-toggle.active::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #6a4fb3;
+}
+
 .dropdown-menu {
   position: absolute;
   top: calc(100% + 5px);
@@ -517,6 +533,15 @@ nav {
 }
 
 .active-link .item-icon {
+  color: white;
+}
+
+.dropdown-item-active {
+  background-color: #6a4fb3;
+  color: white;
+}
+
+.dropdown-item-active .icon {
   color: white;
 }
 

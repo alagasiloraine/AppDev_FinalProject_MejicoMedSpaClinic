@@ -1,55 +1,61 @@
-const database = require('./config/firebase'); // Firestore setup
-const express = require('express');
-const cors = require('cors');
-const adminRoutes = require('./routes/adminRoutes');
-const authRoutes = require('./routes/authRoutes');
-const uploadRoutes = require('./routes/uploadRoutes');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs'); // Import fs module
+import http from 'http';
+import url from 'url';
+import express from 'express';
+import cors from 'cors';
+import { database } from './config/firebase.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { handleSalesPredictions, handleStockRecommendations } from './routes/predictions.js';
+import adminRoutes from './routes/adminRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 // Middleware
-// Enable CORS with specific origin
 app.use(cors({
-  origin: 'http://localhost:5173', // Allow your Vue.js dev server
+  origin: 'http://localhost:5173',
   credentials: true
 }));
 
 app.use(express.json());
 
-// Multer configuration for file uploads
+// Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Determine the upload path based on the route
     let uploadPath;
-    if (req.path === '/api/upload-treatment-image') {
-      uploadPath = path.join(__dirname, '../frontend/public/uploads/treatment_images/');
+    if (req.originalUrl.includes('treatment-image')) {
+      uploadPath = path.join(__dirname, '..', 'frontend', 'public', 'uploads', 'treatment_images');
+    } else if (req.originalUrl.includes('product-image')) {
+      uploadPath = path.join(__dirname, '..', 'frontend', 'public', 'uploads', 'product_images');
     } else {
-      uploadPath = path.join(__dirname, '../frontend/public/uploads/');
+      uploadPath = path.join(__dirname, '..', 'frontend', 'public', 'uploads');
     }
     
-    // Create directory if it doesn't exist
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
-    
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Not an image! Please upload an image.'), false);
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF and WebP are allowed.'), false);
     }
   },
   limits: {
@@ -57,19 +63,22 @@ const upload = multer({
   }
 });
 
-// Service image upload route (unchanged)
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, '..', 'frontend', 'public', 'uploads')));
+
+// Service image upload route
 app.post('/api/upload-service-image', upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    // Return the path relative to the public directory
+    
     const relativePath = `/uploads/${req.file.filename}`;
     
     res.status(200).json({ 
       success: true,
-      path: relativePath
+      path: relativePath,
+      message: 'File uploaded successfully'
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -80,19 +89,18 @@ app.post('/api/upload-service-image', upload.single('image'), (req, res) => {
   }
 });
 
-// Updated treatment image upload route with correct path
+// Treatment image upload route
 app.post('/api/upload-treatment-image', upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    // Return the path relative to the public directory, now including treatment_images
-    const relativePath = `/uploads/treatment_images/${req.file.filename}`;
     
+    const relativePath = `/uploads/treatment_images/${req.file.filename}`;
     res.status(200).json({ 
       success: true,
-      path: relativePath
+      path: relativePath,
+      message: 'Treatment image uploaded successfully'
     });
   } catch (error) {
     console.error('Treatment image upload error:', error);
@@ -103,43 +111,18 @@ app.post('/api/upload-treatment-image', upload.single('image'), (req, res) => {
   }
 });
 
-// Add this route before your other routes
-app.get('/api/check-upload-dir', (req, res) => {
-  const productImagesPath = path.join(__dirname, '../frontend/public/uploads/product_images');
-  
-  try {
-    if (!fs.existsSync(productImagesPath)) {
-      fs.mkdirSync(productImagesPath, { recursive: true });
-    }
-    res.status(200).json({ success: true, message: 'Upload directory is ready' });
-  } catch (error) {
-    console.error('Error checking/creating upload directory:', error);
-    res.status(500).json({ 
-      error: 'Failed to ensure upload directory exists',
-      details: error.message 
-    });
-  }
-});
-
-// Update your product image upload route
+// Product image upload route
 app.post('/api/upload-product-image', upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    // Ensure the product_images directory exists
-    const productImagesPath = path.join(__dirname, '../frontend/public/uploads/product_images');
-    if (!fs.existsSync(productImagesPath)) {
-      fs.mkdirSync(productImagesPath, { recursive: true });
-    }
-
-    // Return the path relative to the public directory
-    const relativePath = `/uploads/product_images/${req.file.filename}`;
     
+    const relativePath = `/uploads/product_images/${req.file.filename}`;
     res.status(200).json({ 
       success: true,
-      path: relativePath
+      path: relativePath,
+      message: 'Product image uploaded successfully'
     });
   } catch (error) {
     console.error('Product image upload error:', error);
@@ -150,68 +133,41 @@ app.post('/api/upload-product-image', upload.single('image'), (req, res) => {
   }
 });
 
+// Check upload directories route
+app.get('/api/check-upload-dirs', (req, res) => {
+  try {
+    const baseUploadDir = path.join(__dirname, '..', 'frontend', 'public', 'uploads');
+    const treatmentImagesDir = path.join(baseUploadDir, 'treatment_images');
+    const productImagesDir = path.join(baseUploadDir, 'product_images');
+
+    [baseUploadDir, treatmentImagesDir, productImagesDir].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'All upload directories are ready',
+      paths: {
+        base: baseUploadDir,
+        treatments: treatmentImagesDir,
+        products: productImagesDir
+      }
+    });
+  } catch (error) {
+    console.error('Error checking/creating directories:', error);
+    res.status(500).json({ 
+      error: 'Failed to ensure upload directories exist',
+      details: error.message 
+    });
+  }
+});
+
 // Mount routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', uploadRoutes);
-
-// Serve static files from the frontend public directory
-app.use(express.static(path.join(__dirname, '../frontend/public')));
-
-// Create a new appointment
-app.post('/api/appointments', async (req, res) => {
-    const { service, date, time, price } = req.body;
-
-    console.log('Received appointment data:', req.body);
-
-    if (!service || !date || !time || !price) {
-        return res.status(400).json({ error: 'All fields are required.' });
-    }
-
-    try {
-        const appointmentRef = await database.collection('appointments').add({
-            service,
-            date,
-            time,
-            price,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        console.log(`Appointment scheduled with ID: ${appointmentRef.id}`);
-        res.status(200).json({
-            message: 'Appointment scheduled successfully',
-            id: appointmentRef.id,
-        });
-    } catch (error) {
-        console.error('Error scheduling appointment:', error);
-        res.status(500).json({
-            error: 'Failed to schedule appointment',
-            details: error.message,
-        });
-    }
-});
-
-// Get all appointments
-app.get('/api/appointments', async (req, res) => {
-    try {
-        const appointmentsSnapshot = await database.collection('appointments').get();
-
-        if (appointmentsSnapshot.empty) {
-            console.log('No appointments found.');
-            return res.status(404).json({ message: 'No appointments available.' });
-        }
-
-        const appointments = appointmentsSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
-
-        res.status(200).json(appointments);
-    } catch (error) {
-        console.error('Error fetching appointments:', error);
-        res.status(500).json({ error: 'Failed to retrieve appointments' });
-    }
-});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -230,9 +186,85 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+
+const server = http.createServer(async (req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+  const pathname = parsedUrl.pathname;
+
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  try {
+    if (pathname === '/api/predictions/sales' && req.method === 'GET') {
+      await handleSalesPredictions(req, res);
+    } else if (pathname === '/api/predictions/stock' && req.method === 'GET') {
+      await handleStockRecommendations(req, res);
+    } else if (pathname === '/api/appointments' && req.method === 'GET') {
+      const appointmentsSnapshot = await database.collection('appointments').get();
+      const appointments = appointmentsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(appointments));
+    } else if (pathname === '/api/appointments' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', async () => {
+        try {
+          const { service, date, time, price } = JSON.parse(body);
+          if (!service || !date || !time || !price) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'All fields are required.' }));
+            return;
+          }
+          const appointmentRef = await database.collection('appointments').add({
+            service,
+            date,
+            time,
+            price,
+            createdAt: new Date(),
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            message: 'Appointment scheduled successfully',
+            id: appointmentRef.id,
+          }));
+        } catch (error) {
+          console.error('Error scheduling appointment:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: 'Failed to schedule appointment',
+            details: error.message,
+          }));
+        }
+      });
+    } else {
+      // Forward the request to Express app
+      app(req, res);
+    }
+  } catch (error) {
+    console.error('Server error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal Server Error', details: error.message }));
+  }
 });
+
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+export default server;
 

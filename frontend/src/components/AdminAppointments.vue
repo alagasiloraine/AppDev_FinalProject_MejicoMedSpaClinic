@@ -73,7 +73,12 @@
         </div>
         <div class="adminappointment-stat-content">
           <p class="adminappointment-stat-value">
-            {{ filteredAppointments.filter(a => new Date(a.date.toDate()).getMonth() === new Date().getMonth()).length }}
+            {{ appointments.filter(a => {
+              const appointmentDate = a.date.toDate();
+              const now = new Date();
+              return appointmentDate.getMonth() === now.getMonth() && 
+                     appointmentDate.getFullYear() === now.getFullYear();
+            }).length }}
           </p>
           <h3 class="adminappointment-stat-label">This Month</h3>
         </div>
@@ -84,7 +89,13 @@
         </div>
         <div class="adminappointment-stat-content">
           <p class="adminappointment-stat-value">
-            {{ filteredAppointments.filter(a => new Date(a.date.toDate()) > new Date()).length }}
+            {{ appointments.filter(a => {
+              const appointmentDate = a.date.toDate();
+              const now = new Date();
+              const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1);
+              return appointmentDate.getMonth() === nextMonth.getMonth() && 
+                     appointmentDate.getFullYear() === nextMonth.getFullYear();
+            }).length }}
           </p>
           <h3 class="adminappointment-stat-label">Next Month</h3>
         </div>
@@ -250,6 +261,7 @@ const fetchAppointments = async () => {
         id: appointmentDoc.id,
         ...data,
         date: data.date instanceof Timestamp ? data.date : Timestamp.fromDate(new Date(data.date)),
+        createdAt: data.createdAt || Timestamp.fromDate(new Date()), // Add createdAt
         status: data.status || 'pending',
         clientName: userData ? `${userData.firstName} ${userData.lastName}` : 'Unknown Client',
         userEmail: userData ? userData.email : 'Unknown Email',
@@ -257,7 +269,7 @@ const fetchAppointments = async () => {
       });
     }
 
-    appointmentsData.sort((a, b) => b.date.toDate() - a.date.toDate());
+    appointmentsData.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate()); // Change from date-based sort to createdAt-based sort
     appointments.value = appointmentsData;
   } catch (err) {
     console.error("Error fetching appointments:", err);
@@ -327,10 +339,10 @@ const filteredAppointments = computed(() => {
   // Apply sorting
   switch (sortOption.value) {
     case 'latest':
-      filtered.sort((a, b) => b.date.toDate() - a.date.toDate());
+      filtered.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
       break;
     case 'oldest':
-      filtered.sort((a, b) => a.date.toDate() - b.date.toDate());
+      filtered.sort((a, b) => a.createdAt.toDate() - b.createdAt.toDate());
       break;
     case 'thisWeek':
       filtered = filterAppointmentsByWeek(filtered, 0);

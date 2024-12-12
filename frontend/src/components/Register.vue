@@ -202,7 +202,7 @@ const handleRegister = async () => {
 };
 
 const goToLandingPage = () => {
-  router.push('/').catch(err => {
+  router.push({ name: 'Landing' }).catch(err => {
     if (err.name !== 'NavigationDuplicated') {
       console.error('Navigation error:', err);
     }

@@ -114,7 +114,7 @@
     </div>
 
     <div class="admintreatment-pagination">
-      <span>Showing {{ paginatedTreatments.length }} of {{ totalTreatments }} treatments</span>
+      <span>Showing {{ Math.min(currentPage * itemsPerPage, totalTreatments) }} of {{ totalTreatments }} treatments</span>
       <div class="admintreatment-pagination-buttons">
         <button 
           @click="prevPage" 
@@ -276,7 +276,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { database } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { Search, Pencil, Archive, RotateCcw, Plus, CheckCircle, XCircle, Filter, Package, FileText, DollarSign, Check, X, Clipboard, UploadCloud, Image as ImageIcon, Loader, ChevronDown } from 'lucide-vue-next';
@@ -296,7 +296,7 @@ const editingTreatment = ref(null);
 const isModalOpen = ref(false);
 const searchQuery = ref('');
 const selectedService = ref('');
-const showArchived = ref(false);
+const showArchived = ref(false); 
 const currentPage = ref(1);
 const itemsPerPage = 4;
 
@@ -484,15 +484,7 @@ const updateTreatment = async () => {
 const toggleArchiveTreatment = async (treatment) => {
   showLoadingNotification('Updating archive status...');
   try {
-    const treatmentsRef = collection(database, 'treatments');
-    const q = query(treatmentsRef, where("id", "==", treatment.id));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      throw new Error('Treatment not found');
-    }
-
-    const docRef = doc(database, 'treatments', querySnapshot.docs[0].id);
+    const docRef = doc(database, 'treatments', treatment.id);
     const newArchivedStatus = !treatment.archived;
     
     await updateDoc(docRef, {
@@ -500,12 +492,21 @@ const toggleArchiveTreatment = async (treatment) => {
       archivedAt: newArchivedStatus ? new Date().toISOString() : null
     });
     
+    // Update the treatment in the array immediately
     const index = treatments.value.findIndex(t => t.id === treatment.id);
-    treatments.value[index] = { 
-      ...treatment, 
-      archived: newArchivedStatus,
-      archivedAt: newArchivedStatus ? new Date().toISOString() : null
-    };
+    if (index !== -1) {
+      treatments.value[index] = { 
+        ...treatment, 
+        archived: newArchivedStatus,
+        archivedAt: newArchivedStatus ? new Date().toISOString() : null
+      };
+    }
+    
+    // Force the filtered treatments to update by toggling showArchived if needed
+    if (showArchived.value === newArchivedStatus) {
+      showArchived.value = !showArchived.value;
+      showArchived.value = newArchivedStatus;
+    }
     
     showNotification(
       newArchivedStatus 
@@ -563,7 +564,7 @@ onMounted(() => {
 const filteredTreatments = computed(() => {
   return treatments.value.filter(treatment => {
     const matchesSearch = treatment.name.toLowerCase().includes(searchQuery.value.toLowerCase());
-    const matchesService = !selectedService.value || treatment.services === selectedService.value;
+    const matchesService = !selectedService.value || treatment.services === getServiceIdByName(selectedService.value);
     const matchesArchiveStatus = treatment.archived === showArchived.value;
     return matchesSearch && matchesService && matchesArchiveStatus;
   });
@@ -596,6 +597,11 @@ const getServiceNameById = (serviceId) => {
   return service ? service.name : '';
 };
 
+const getServiceIdByName = (serviceName) => {
+  const service = services.value.find(s => s.name === serviceName);
+  return service ? service.id : null;
+};
+
 const applyFilters = () => {
   currentPage.value = 1;
 };
@@ -617,6 +623,10 @@ const editTreatment = (treatment) => {
   }
   isModalOpen.value = true;
 };
+
+watch(showArchived, () => {
+  currentPage.value = 1;
+});
 </script>
 
 <style scoped>
@@ -939,7 +949,7 @@ const editTreatment = (treatment) => {
 }
 
 .admintreatment-notification-message {
-  font-size: 14px;
+  font: 14px;
   margin: 0;
   line-height: 1.5;
 }
@@ -964,7 +974,7 @@ const editTreatment = (treatment) => {
   border-left: 4px solid #8b5cf6;
 }
 
-.admintreatment-notification.is-loading.admintreatment-notification-icon {
+.admintreatment-notification.is-loading .admintreatment-notification-icon {
   color: #8b5cf6;
 }
 
@@ -974,7 +984,7 @@ const editTreatment = (treatment) => {
 }
 
 .fade-enter-from,
-.fade-leaveto {
+.fade-leave-to {
   opacity: 0;
   transform: translateX(100%);
 }
@@ -983,7 +993,7 @@ const editTreatment = (treatment) => {
   position: fixed;
   top: 0;
   left: 0;
-  width:100%;
+  width: 100%;
   height: 100%;
   display: flex;
   justify-content: center;
@@ -998,7 +1008,7 @@ const editTreatment = (treatment) => {
   left: 0;
   width: 100%;
   height: 100%;
-  background:rgba(17, 24, 39, 0.7);
+  background: rgba(17, 24, 39, 0.7);
   backdrop-filter: blur(2px);
   animation: fadeIn 0.2s ease-out;
   z-index: 49;
@@ -1367,4 +1377,3 @@ const editTreatment = (treatment) => {
   }
 }
 </style>
-
