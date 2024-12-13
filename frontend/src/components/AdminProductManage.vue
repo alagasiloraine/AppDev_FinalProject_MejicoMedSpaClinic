@@ -234,12 +234,41 @@
                 id="category" 
                 required
                 class="adminprodmanage-input"
+                @change="loadTreatmentsForCategory"
               >
                 <option value="" disabled>Select a category</option>
                 <option v-for="service in services" :key="service.id" :value="service.name">
                   {{ service.name }}
                 </option>
               </select>
+            </div>
+          </div>
+
+          <div v-if="currentProduct.category" class="adminprodmanage-form-group">
+            <label>Treatments</label>
+            <div class="treatments-container">
+              <div v-if="loading" class="treatments-loading">
+                <Loader class="adminprodmanage-loading-icon adminprodmanage-spin" />
+                <span>Loading treatments...</span>
+              </div>
+              <div v-else-if="categoryTreatments.length === 0" class="treatments-empty">
+                No treatments found for this category
+              </div>
+              <div v-else class="treatments-grid">
+                <label 
+                  v-for="treatment in categoryTreatments" 
+                  :key="treatment.id" 
+                  class="treatment-checkbox"
+                >
+                  <input
+                    type="checkbox"
+                    :value="treatment.id"
+                    v-model="currentProduct.treatments"
+                    class="treatment-checkbox-input"
+                  >
+                  <span class="treatment-checkbox-label">{{ treatment.name }}</span>
+                </label>
+              </div>
             </div>
           </div>
           
@@ -358,7 +387,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { auth, database } from '../firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, getDoc, query, where } from 'firebase/firestore';
 import { useToast } from 'vue-toastification';
 import { 
   AlertCircle, Package, Search, Filter, 
@@ -377,12 +406,20 @@ const showArchiveModal = ref(false);
 const showRestoreModal = ref(false);
 const searchCategory = ref('');
 const searchProduct = ref('');
-const currentProduct = ref({ name: '', description: '', price: 0, quantity: 0, category: '' });
+const currentProduct = ref({ 
+  name: '', 
+  description: '', 
+  price: 0, 
+  quantity: 0, 
+  category: '',
+  treatments: [] 
+});
 const editingProduct = ref(null);
 const activeTab = ref('active');
 const isAdmin = ref(false);
 const productToArchive = ref(null);
 const productToRestore = ref(null);
+const categoryTreatments = ref([]);
 
 const checkAdminStatus = async () => {
   try {
@@ -459,6 +496,7 @@ const saveProduct = async () => {
       price: Number(currentProduct.value.price),
       quantity: Number(currentProduct.value.quantity),
       category: currentProduct.value.category,
+      treatments: currentProduct.value.treatments, 
       updatedBy: user.uid,
       updatedAt: new Date().toISOString()
     };
@@ -486,14 +524,22 @@ const saveProduct = async () => {
   }
 };
 
-const editProduct = (product) => {
+const editProduct = async (product) => {
   if (!isAdmin.value) {
     toast.error('You do not have permission to edit products');
     return;
   }
-  currentProduct.value = { ...product };
+  currentProduct.value = { 
+    ...product,
+    treatments: product.treatments || [] 
+  };
   editingProduct.value = product.id;
   showModal.value = true;
+  
+  if (product.category) {
+    await loadTreatmentsForCategory();
+    console.log('Treatments after loading:', categoryTreatments.value);
+  }
 };
 
 const archiveProduct = async (productId) => {
@@ -578,14 +624,14 @@ const openAddModal = () => {
     toast.error('You do not have permission to add products');
     return;
   }
-  currentProduct.value = { name: '', description: '', price: 0, quantity: 0, category: '' };
+  currentProduct.value = { name: '', description: '', price: 0, quantity: 0, category: '', treatments: [] };
   editingProduct.value = null;
   showModal.value = true;
 };
 
 const closeModal = () => {
   showModal.value = false;
-  currentProduct.value = { name: '', description: '', price: 0, quantity: 0, category: '' };
+  currentProduct.value = { name: '', description: '', price: 0, quantity: 0, category: '', treatments: [] };
   editingProduct.value = null;
 };
 
@@ -628,6 +674,51 @@ const filteredProducts = computed(() => {
     return matchesCategory && matchesProduct;
   });
 });
+
+const loadTreatmentsForCategory = async () => {
+  if (!currentProduct.value.category) return;
+  
+  loading.value = true;
+  try {
+    // First get the service ID for the selected category
+    const servicesCollection = collection(database, 'services');
+    const serviceQuery = query(
+      servicesCollection,
+      where('name', '==', currentProduct.value.category)
+    );
+    const serviceSnapshot = await getDocs(serviceQuery);
+    
+    if (serviceSnapshot.empty) {
+      console.log('No service found for category:', currentProduct.value.category);
+      categoryTreatments.value = [];
+      return;
+    }
+
+    const serviceId = serviceSnapshot.docs[0].id;
+    console.log('Found service ID:', serviceId);
+
+    // Then get treatments that reference this service ID
+    const treatmentsCollection = collection(database, 'treatments');
+    const treatmentsQuery = query(
+      treatmentsCollection,
+      where('services', '==', serviceId)
+    );
+    const treatmentSnapshot = await getDocs(treatmentsQuery);
+    
+    categoryTreatments.value = treatmentSnapshot.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().name,
+      ...doc.data()
+    }));
+    
+    console.log('Loaded treatments:', categoryTreatments.value);
+  } catch (err) {
+    console.error('Error loading treatments:', err);
+    toast.error('Failed to load treatments');
+  } finally {
+    loading.value = false;
+  }
+};
 
 onMounted(async () => {
   try {
@@ -825,13 +916,13 @@ onMounted(async () => {
   height: 100%;
   overflow-y: auto;
   overflow-x: auto;
-  margin-right: 8px; /* Add margin for scrollbar */
-  padding-right: 8px; /* Add padding for scrollbar */
+  margin-right: 8px; 
+  padding-right: 8px; 
 }
 
 .adminprodmanage-table {
   width: 100%;
-  min-width: 100%; /* Ensure table takes full width */
+  min-width: 100%; 
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -1202,6 +1293,79 @@ onMounted(async () => {
   .adminprodmanage-form-row {
     grid-template-columns: 1fr;
   }
+}
+
+.treatments-container {
+  background-color: #f8fafc;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 2px solid #e2e8f0;
+}
+
+.treatments-loading,
+.treatments-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.treatments-loading {
+  gap: 0.5rem;
+}
+
+.treatments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.treatment-checkbox {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.treatment-checkbox:hover {
+  background-color: #f1f5f9;
+}
+
+.treatment-checkbox-input {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  accent-color: #8b5cf6;
+}
+
+.treatment-checkbox-label {
+  font-size: 0.875rem;
+  color: #4a5568;
+}
+
+.treatments-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.treatments-grid::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.treatments-grid::-webkit-scrollbar-thumb {
+  background: #8b5cf6;
+  border-radius: 3px;
+}
+
+.treatments-grid::-webkit-scrollbar-thumb:hover {
+  background: #7c3aed;
 }
 </style>
 

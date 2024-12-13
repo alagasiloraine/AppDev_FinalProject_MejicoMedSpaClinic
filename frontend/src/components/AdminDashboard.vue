@@ -16,30 +16,30 @@
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">Total Clients</div>
-        <div class="metric-value">{{ totalPatients }}</div>
-        <div :class="['percentage', clientPercentageChange > 0 ? 'increase' : 'decrease']">
-          {{ clientPercentageChange > 0 ? '↑' : '↓' }} {{ Math.abs(clientPercentageChange) }}%
+        <div class="metric-value">{{ totalPatients || 0 }}</div>
+        <div :class="['percentage', clientPercentageChange >= 0 ? 'increase' : 'decrease']">
+          {{ clientPercentageChange >= 0 ? '↑' : '↓' }} {{ Math.abs(clientPercentageChange).toFixed(1) }}%
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-header">Total Revenue</div>
         <div class="metric-value">₱{{ formatPrice(calculateTotalRevenue()) }}</div>
-        <div :class="['percentage', revenuePercentageChange > 0 ? 'increase' : 'decrease']">
-          {{ revenuePercentageChange > 0 ? '↑' : '↓' }} {{ Math.abs(revenuePercentageChange) }}%
+        <div :class="['percentage', Math.abs(revenuePercentageChange) > 0 ? 'increase' : '']">
+          {{ Math.abs(revenuePercentageChange) > 0 ? '↑' : '' }} {{ Math.abs(revenuePercentageChange).toFixed(1) }}%
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-header">Approved Appointments</div>
         <div class="metric-value">{{ approvedAppointments.length }}</div>
-        <div :class="['percentage', appointmentPercentageChange > 0 ? 'increase' : 'decrease']">
-          {{ appointmentPercentageChange > 0 ? '↑' : '↓' }} {{ Math.abs(appointmentPercentageChange) }}%
+        <div :class="['percentage', Math.abs(appointmentPercentageChange) > 0 ? 'increase' : '']">
+          {{ Math.abs(appointmentPercentageChange) > 0 ? '↑' : '' }} {{ Math.abs(appointmentPercentageChange).toFixed(1) }}%
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-header">Total Products</div>
         <div class="metric-value">{{ totalProducts }}</div>
-        <div :class="['percentage', productPercentageChange > 0 ? 'increase' : 'decrease']">
-          {{ productPercentageChange > 0 ? '↑' : '↓' }} {{ Math.abs(productPercentageChange) }}%
+        <div :class="['percentage', Math.abs(productPercentageChange) > 0 ? 'increase' : '']">
+          {{ Math.abs(productPercentageChange) > 0 ? '↑' : '' }} {{ Math.abs(productPercentageChange).toFixed(1) }}%
         </div>
       </div>
     </div>
@@ -91,6 +91,12 @@ const approvedAppointments = computed(() =>
   appointments.value.filter(appointment => appointment.status === 'approved')
 );
 
+const capPercentage = (value) => {
+  const parsed = parseFloat(value);
+  if (isNaN(parsed)) return 0;
+  return Math.max(-100, Math.min(100, parsed));
+};
+
 const fetchProducts = async () => {
   try {
     const productsCollection = collection(database, 'products');
@@ -116,16 +122,58 @@ const fetchRecentUsers = async () => {
 
 const fetchClients = async () => {
   try {
-    const q = query(collection(database, 'users'), where('role', '==', 'client'));
+    const q = query(
+      collection(database, 'users'),
+      where('role', '==', 'client')
+    );
     const querySnapshot = await getDocs(q);
+    
+    // Process each client document
+    const processedClients = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      
+      // Try to get date from either registrationDate or createdAt
+      let createdAt;
+      try {
+        if (data.registrationDate) {
+          createdAt = new Date(data.registrationDate);
+        } else if (data.createdAt instanceof Timestamp) {
+          createdAt = data.createdAt;
+        } else if (data.createdAt?.seconds) {
+          createdAt = new Timestamp(data.createdAt.seconds, data.createdAt.nanoseconds || 0);
+        } else if (data.createdAt) {
+          createdAt = new Date(data.createdAt);
+        }
 
-    clients.value = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      lastVisit: doc.data().lastVisit instanceof Timestamp ? doc.data().lastVisit : Timestamp.fromDate(new Date(doc.data().lastVisit)),
-    }));
+        // Validate the date
+        if (createdAt && !isNaN(createdAt.getTime())) {
+          createdAt = Timestamp.fromDate(createdAt);
+        } else {
+          console.warn('Invalid date for client:', doc.id);
+          return null;
+        }
+      } catch (err) {
+        console.warn('Error processing date for client:', doc.id, err);
+        return null;
+      }
 
-    totalPatients.value = clients.value.length;
+      return {
+        id: doc.id,
+        ...data,
+        createdAt
+      };
+    }).filter(Boolean); // Remove null entries
+
+    clients.value = processedClients;
+    
+    // Set total patients count from the processed clients length
+    totalPatients.value = processedClients.length;
+    
+    console.log('Processed clients:', {
+      total: processedClients.length,
+      withValidDates: processedClients.length
+    });
+
   } catch (err) {
     console.error("Error fetching clients:", err);
     error.value = 'Failed to fetch client profiles. Please try again later.';
@@ -154,98 +202,110 @@ const fetchAppointments = async () => {
 };
 
 const createAppointmentChart = () => {
-  const ctx = appointmentChartRef.value.getContext('2d');
-  
-  // Process appointment data by date
-  const appointmentsByDate = {};
-  appointments.value.forEach(appointment => {
-    const date = appointment.date.toDate().toISOString().split('T')[0];
-    appointmentsByDate[date] = (appointmentsByDate[date] || 0) + 1;
-  });
+  try {
+    if (!appointmentChartRef.value) {
+      console.warn('Chart reference not found');
+      return;
+    }
+    const ctx = appointmentChartRef.value.getContext('2d');
+    if (!ctx) {
+      console.warn('Could not get chart context');
+      return;
+    }
+    
+    // Process appointment data by date
+    const appointmentsByDate = {};
+    appointments.value.forEach(appointment => {
+      const date = appointment.date.toDate().toISOString().split('T')[0];
+      appointmentsByDate[date] = (appointmentsByDate[date] || 0) + 1;
+    });
 
-  // Sort dates and get last 30 days
-  const sortedDates = Object.keys(appointmentsByDate).sort();
-  const last30Days = sortedDates.slice(-30);
-  const appointmentCounts = last30Days.map(date => appointmentsByDate[date] || 0);
+    // Sort dates and get last 30 days
+    const sortedDates = Object.keys(appointmentsByDate).sort();
+    const last30Days = sortedDates.slice(-30);
+    const appointmentCounts = last30Days.map(date => appointmentsByDate[date] || 0);
 
-  // Generate an array of colors
-  const colors = [
-    'rgba(124, 58, 237, 0.8)',   // Purple (original color)
-    'rgba(236, 72, 153, 0.8)',   // Pink
-    'rgba(59, 130, 246, 0.8)',   // Blue
-    'rgba(16, 185, 129, 0.8)',   // Green
-    'rgba(245, 158, 11, 0.8)',   // Amber
-    'rgba(239, 68, 68, 0.8)',    // Red
-  ];
+    // Generate an array of colors
+    const colors = [
+      'rgba(124, 58, 237, 0.8)',   // Purple (original color)
+      'rgba(236, 72, 153, 0.8)',   // Pink
+      'rgba(59, 130, 246, 0.8)',   // Blue
+      'rgba(16, 185, 129, 0.8)',   // Green
+      'rgba(245, 158, 11, 0.8)',   // Amber
+      'rgba(239, 68, 68, 0.8)',    // Red
+    ];
 
-  if (appointmentChart) {
-    appointmentChart.destroy();
-  }
+    if (appointmentChart) {
+      appointmentChart.destroy();
+    }
 
-  appointmentChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: last30Days,
-      datasets: [{
-        label: 'Appointments',
-        data: appointmentCounts,
-        backgroundColor: last30Days.map((_, index) => colors[index % colors.length]),
-        borderColor: last30Days.map((_, index) => colors[index % colors.length].replace('0.8', '1')),
-        borderWidth: 1,
-        borderRadius: 4,
-        maxBarThickness: 40
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          grid: {
+    appointmentChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: last30Days,
+        datasets: [{
+          label: 'Appointments',
+          data: appointmentCounts,
+          backgroundColor: last30Days.map((_, index) => colors[index % colors.length]),
+          borderColor: last30Days.map((_, index) => colors[index % colors.length].replace('0.8', '1')),
+          borderWidth: 1,
+          borderRadius: 4,
+          maxBarThickness: 40
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              font: {
+                size: 12
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              borderDash: [8, 4]
+            },
+            ticks: {
+              stepSize: 1,
+              font: {
+                size: 12
+              }
+            }
+          }
+        },
+        plugins: {
+          legend: {
             display: false
           },
-          ticks: {
-            font: {
-              size: 12
-            }
-          }
-        },
-        y: {
-          beginAtZero: true,
-          grid: {
-            borderDash: [8, 4]
-          },
-          ticks: {
-            stepSize: 1,
-            font: {
-              size: 12
-            }
-          }
-        }
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          backgroundColor: 'rgb(17, 24, 39)',
-          padding: 12,
-          titleFont: {
-            size: 14,
-            weight: 'normal'
-          },
-          bodyFont: {
-            size: 13
-          },
-          callbacks: {
-            label: (context) => {
-              return `Appointments: ${context.parsed.y}`;
+          tooltip: {
+            backgroundColor: 'rgb(17, 24, 39)',
+            padding: 12,
+            titleFont: {
+              size: 14,
+              weight: 'normal'
+            },
+            bodyFont: {
+              size: 13
+            },
+            callbacks: {
+              label: (context) => {
+                return `Appointments: ${context.parsed.y}`;
+              }
             }
           }
         }
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error('Error creating appointment chart:', err);
+  }
 };
 
 const createRevenueChart = () => {
@@ -362,51 +422,153 @@ const formatPrice = (price) => {
   return price.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// New computed properties for percentage changes
-const clientPercentageChange = computed(() => {
-  const previousPeriodClients = clients.value.filter(client => {
-    const registrationDate = client.registrationDate instanceof Timestamp 
-      ? client.registrationDate.toDate() 
-      : new Date(client.registrationDate);
-    return registrationDate < new Date(new Date().setMonth(new Date().getMonth() - 1));
-  }).length;
+const calculatePercentageChange = (currentPeriod, previousPeriod) => {
+  // If both periods are 0, return 0 (no change)
+  if (currentPeriod === 0 && previousPeriod === 0) return 0;
+  // If previous period is 0, calculate based on current value
+  if (previousPeriod === 0) return currentPeriod > 0 ? 100 : 0;
+  // Calculate percentage change
+  const change = ((currentPeriod - previousPeriod) / Math.abs(previousPeriod)) * 100;
+  // Return the absolute value of the change
+  return Math.abs(change);
+};
+
+const calculateDailyChange = (dailyData) => {
+  if (dailyData.length < 2) return 0;
+
+  // Sort by date in descending order (newest first)
+  const sortedData = [...dailyData].sort((a, b) => b.date.getTime() - a.date.getTime());
   
-  const currentClients = clients.value.length;
-  return previousPeriodClients > 0 
-    ? ((currentClients - previousPeriodClients) / previousPeriodClients * 100).toFixed(1)
-    : 0;
+  // Get the two most recent days with data
+  let currentDay = null;
+  let previousDay = null;
+  let currentDate = null;
+  
+  for (const entry of sortedData) {
+    if (currentDay === null) {
+      currentDay = entry.value;
+      currentDate = entry.date;
+      continue;
+    }
+    
+    // Only compare with the previous different date
+    if (entry.date.getTime() < currentDate.getTime()) {
+      previousDay = entry.value;
+      break;
+    }
+  }
+  
+  if (currentDay === null || previousDay === null) return 0;
+  
+  return calculatePercentageChange(currentDay, previousDay);
+};
+
+const groupDataByDate = (data) => {
+  const grouped = {};
+  data.forEach(item => {
+    try {
+      if (!item.date) return;
+      
+      let dateObj;
+      if (item.date instanceof Timestamp) {
+        dateObj = item.date.toDate();
+      } else if (item.date instanceof Date) {
+        dateObj = item.date;
+      } else {
+        dateObj = new Date(item.date);
+      }
+
+      if (isNaN(dateObj.getTime())) {
+        console.warn('Invalid date encountered:', item.date);
+        return;
+      }
+
+      const dateStr = dateObj.toISOString().split('T')[0];
+      if (!grouped[dateStr]) {
+        grouped[dateStr] = {
+          date: dateObj,
+          value: 0
+        };
+      }
+      grouped[dateStr].value += item.value || 0;
+    } catch (err) {
+      console.error('Error processing date:', err);
+    }
+  });
+  return Object.values(grouped);
+};
+
+const clientPercentageChange = computed(() => {
+  try {
+    if (clients.value.length === 0) return 0;
+
+    // Sort clients by creation date
+    const sortedClients = [...clients.value].sort((a, b) => {
+      const dateA = a.createdAt.toDate();
+      const dateB = b.createdAt.toDate();
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    // Calculate the growth percentage based on new clients
+    const totalClients = sortedClients.length;
+    const previousTotal = totalClients - 1; // Since all clients are new, each one represents 100% growth
+    
+    // If this is the first client, show 100% growth
+    if (previousTotal === 0) return 100;
+
+    // Calculate the growth percentage
+    const growthPercentage = ((totalClients - previousTotal) / previousTotal) * 100;
+
+    console.log('Client growth calculation:', {
+      totalClients,
+      previousTotal,
+      growthPercentage
+    });
+
+    return growthPercentage;
+  } catch (err) {
+    console.error('Error calculating client percentage:', err);
+    return 0;
+  }
 });
 
 const appointmentPercentageChange = computed(() => {
-  const previousPeriodAppointments = appointments.value.filter(apt => {
-    const aptDate = apt.date instanceof Timestamp ? apt.date.toDate() : new Date(apt.date);
-    return aptDate < new Date(new Date().setMonth(new Date().getMonth() - 1));
-  }).length;
-  
-  const currentAppointments = approvedAppointments.value.length;
-  return previousPeriodAppointments > 0 
-    ? ((currentAppointments - previousPeriodAppointments) / previousPeriodAppointments * 100).toFixed(1)
-    : 0;
+  const appointmentData = approvedAppointments.value.map(apt => ({
+    date: apt.date instanceof Timestamp ? apt.date.toDate() : new Date(apt.date),
+    value: 1
+  }));
+  return calculateDailyChange(groupDataByDate(appointmentData));
 });
 
 const revenuePercentageChange = computed(() => {
-  const currentRevenue = calculateTotalRevenue();
-  const previousPeriodRevenue = appointments.value
-    .filter(apt => {
-      const aptDate = apt.date instanceof Timestamp ? apt.date.toDate() : new Date(apt.date);
-      return aptDate < new Date(new Date().setMonth(new Date().getMonth() - 1));
-    })
-    .reduce((total, apt) => total + (apt.price || 0), 0);
-
-  return previousPeriodRevenue > 0
-    ? ((currentRevenue - previousPeriodRevenue) / previousPeriodRevenue * 100).toFixed(1)
-    : 0;
+  const revenueData = appointments.value.map(apt => ({
+    date: apt.date instanceof Timestamp ? apt.date.toDate() : new Date(apt.date),
+    value: apt.price || 0
+  }));
+  return calculateDailyChange(groupDataByDate(revenueData));
 });
 
 const productPercentageChange = computed(() => {
-  // Assuming you have a way to track product changes over time
-  // For now, we'll return a static value
-  return -3.2;
+  const now = new Date();
+  const today = new Date(now.setHours(0, 0, 0, 0));
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const todayProducts = products.value.filter(product => {
+    const createdAt = product.createdAt instanceof Timestamp 
+      ? product.createdAt.toDate() 
+      : new Date(product.createdAt);
+    return createdAt >= today;
+  }).length;
+
+  const yesterdayProducts = products.value.filter(product => {
+    const createdAt = product.createdAt instanceof Timestamp 
+      ? product.createdAt.toDate() 
+      : new Date(product.createdAt);
+    return createdAt >= yesterday && createdAt < today;
+  }).length;
+
+  return calculatePercentageChange(todayProducts, yesterdayProducts);
 });
 
 onMounted(() => {
@@ -596,3 +758,4 @@ main {
   }
 }
 </style>
+

@@ -277,35 +277,38 @@
             <!-- Treatment Tab -->
             <div v-if="activeTab === 'Treatment'" class="tab-pane">
               <h3 class="tab-title">Treatment History</h3>
-              <div v-if="pastAppointments.length > 0" class="treatment-list">
+              <div v-if="loading" class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading treatment history...</p>
+              </div>
+              <div v-else-if="error" class="error-state">
+                <p>{{ error }}</p>
+              </div>
+              <div v-else-if="pastAppointments.length > 0" class="treatment-list">
                 <div 
                   v-for="appointment in pastAppointments" 
                   :key="appointment.id"
                   class="treatment-item"
                 >
                   <div class="treatment-header">
-                    <h4 class="treatment-name">
-                      {{ Array.isArray(appointment.services) 
-                        ? appointment.services.join(', ') 
-                        : appointment.services }}
-                    </h4>
+                    <h4 class="treatment-name">{{ appointment.serviceName }}</h4>
                     <span :class="['treatment-status', appointment.status.toLowerCase()]">
                       {{ appointment.status }}
                     </span>
                   </div>
                   <div class="treatment-details">
-                    <p class="treatment-date">
+                    <div class="treatment-info">
                       <Calendar class="inline-icon" />
-                      Date: {{ formatDate(appointment.date) }}
-                    </p>
-                    <p class="treatment-time">
+                      {{ formatDate(appointment.date) }}
+                    </div>
+                    <div class="treatment-info">
                       <Clock class="inline-icon" />
-                      Time: {{ appointment.time }}
-                    </p>
-                    <p class="treatment-price">
+                      {{ appointment.time }}
+                    </div>
+                    <div class="treatment-info">
                       <DollarSign class="inline-icon" />
-                      Price: ₱{{ appointment.price }}
-                    </p>
+                      ₱{{ appointment.price }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -355,9 +358,9 @@ const fetchClients = async () => {
         id: doc.id,
         ...data,
         status: data.status || 'active',
-        dateOfBirth: data.dateOfBirth instanceof Timestamp ? data.dateOfBirth : Timestamp.fromDate(new Date(data.dateOfBirth)),
-        lastVisit: data.lastVisit instanceof Timestamp ? data.lastVisit : (data.lastVisit ? Timestamp.fromDate(new Date(data.lastVisit)) : null),
-        registrationDate: data.registrationDate instanceof Timestamp ? data.registrationDate : Timestamp.fromDate(new Date(data.registrationDate)),
+        dateOfBirth: data.dateOfBirth instanceof Timestamp ? data.dateOfBirth.toDate() : new Date(data.dateOfBirth),
+        lastVisit: data.lastVisit instanceof Timestamp ? data.lastVisit.toDate() : (data.lastVisit ? new Date(data.lastVisit) : null),
+        registrationDate: data.registrationDate instanceof Timestamp ? data.registrationDate.toDate() : new Date(data.registrationDate),
         profileImage: data.profileImage || null,
         treatments: data.treatments || []
       };
@@ -384,7 +387,7 @@ const filteredClients = computed(() => {
     let matchesDate = true;
     if (dateFilter.value) {
       const now = new Date();
-      const registrationDate = client.registrationDate.toDate();
+      const registrationDate = client.registrationDate;
       const diffTime = Math.abs(now - registrationDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
@@ -406,22 +409,8 @@ const filteredClients = computed(() => {
 });
 
 const formatDate = (date) => {
-  if (date instanceof Timestamp) {
-    return date.toDate().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }
   if (date instanceof Date) {
     return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }
-  if (typeof date === 'string') {
-    return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -450,10 +439,11 @@ const getInitials = (firstName, lastName) => {
 };
 
 const fetchPastAppointments = async (userEmail) => {
+  console.log('Fetching appointments for:', userEmail);
   try {
     const appointmentsRef = collection(database, 'appointments');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of day
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const q = query(
       appointmentsRef,
@@ -461,35 +451,61 @@ const fetchPastAppointments = async (userEmail) => {
     );
 
     const querySnapshot = await getDocs(q);
-    const allAppointments = querySnapshot.docs.map(doc => {
+    console.log('Found appointments:', querySnapshot.size);
+
+    const allAppointments = [];
+
+    querySnapshot.forEach(doc => {
       const data = doc.data();
-      const appointmentDate = new Date(data.date);
-      appointmentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
-      
-      // Only include appointments that are in the past
-      if (appointmentDate < today) {
-        return {
+      console.log('Processing appointment:', data);
+
+      // Convert the appointment date and time
+      let appointmentDate;
+      if (data.date instanceof Timestamp) {
+        appointmentDate = data.date.toDate();
+      } else if (typeof data.date === 'string') {
+        appointmentDate = new Date(data.date);
+      } else if (data.date && data.date.seconds) {
+        appointmentDate = new Date(data.date.seconds * 1000);
+      } else {
+        appointmentDate = new Date(data.date);
+      }
+
+      // Create a date object with both date and time
+      const [hours, minutes] = (data.time || '00:00').split(':');
+      const appointmentDateTime = new Date(appointmentDate);
+      appointmentDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+      // Include if appointment is from a past date OR is from today but time has passed
+      if (appointmentDate < today || (
+          appointmentDate.getDate() === today.getDate() &&
+          appointmentDate.getMonth() === today.getMonth() &&
+          appointmentDate.getFullYear() === today.getFullYear() &&
+          appointmentDateTime < now
+      )) {
+        allAppointments.push({
           id: doc.id,
-          date: data.date,
-          time: data.time,
-          services: Array.isArray(data.services) 
-            ? data.services 
-            : typeof data.services === 'string'
-            ? [data.services]
-            : [],
+          serviceName: data.serviceName || data.services || 'Unknown Service',
+          date: appointmentDate,
+          time: data.time || '00:00',
           status: data.status || 'completed',
           price: data.price || 0
-        };
+        });
       }
-      return null;
-    }).filter(Boolean); // Remove null entries
+    });
 
-    // Sort past appointments by date in descending order
+    // Sort appointments by date and time in descending order
     pastAppointments.value = allAppointments.sort((a, b) => {
-      const dateA = new Date(a.date + 'T' + a.time);
-      const dateB = new Date(b.date + 'T' + b.time);
+      const dateA = new Date(a.date.getTime());
+      const dateB = new Date(b.date.getTime());
+      const [hoursA, minutesA] = (a.time || '00:00').split(':');
+      const [hoursB, minutesB] = (b.time || '00:00').split(':');
+      dateA.setHours(parseInt(hoursA), parseInt(minutesA));
+      dateB.setHours(parseInt(hoursB), parseInt(minutesB));
       return dateB - dateA;
     });
+
+    console.log('Processed past appointments:', pastAppointments.value);
 
   } catch (error) {
     console.error('Error fetching past appointments:', error);
@@ -501,14 +517,24 @@ const viewProfile = async (client) => {
   selectedClient.value = client;
   activeTab.value = 'Personal';
   if (client.email) {
-    await fetchPastAppointments(client.email);
+    loading.value = true;
+    error.value = null;
+    console.log('Viewing profile for:', client.email); 
+    try {
+      await fetchPastAppointments(client.email);
+    } catch (err) {
+      console.error('Error in viewProfile:', err);
+      error.value = 'Failed to load treatment history. Please try again.';
+    } finally {
+      loading.value = false;
+    }
   }
 };
 
 const calculateAge = (birthDate) => {
   if (!birthDate) return 'N/A';
   const today = new Date();
-  const birth = birthDate instanceof Timestamp ? birthDate.toDate() : new Date(birthDate);
+  const birth = new Date(birthDate);
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
@@ -863,9 +889,7 @@ onMounted(() => {
   line-height: 1.2;
   max-width: 100%;
   overflow-wrap: break-word;
-}
-
-.modal-status-badge {
+}.modal-status-badge {
   padding: 0.375rem 0.75rem;
   border-radius: 9999px;
   font-size: 0.688rem;
@@ -874,7 +898,7 @@ onMounted(() => {
   letter-spacing: 0.05em;
 }
 
-.modal-status-badge.active {
+.modal.modal-status-badge.active {
   background-color: #10B981;
   color: white;
 }
@@ -893,20 +917,13 @@ onMounted(() => {
 }
 
 .modal-info-row {
-  display: flex;
+  display:flex;
   align-items: center;
   color: white;
   padding: 0.125rem 0;
   gap: 0.75rem;
   line-height: 1.4;
   word-break: break-word;
-}
-
-.modal-info-icon {
-  width: 1rem;
-  height: 1rem;
-  margin-right: 0.5rem;
-  flex-shrink: 0;
 }
 
 .modal-info-row span {
@@ -1097,18 +1114,12 @@ onMounted(() => {
 }
 
 .treatment-status.approved {
-  background-color: #f0fdf4;
+  background-color: #dcfce7;
   color: #166534;
-}
-
-.treatment-status.cancelled {
-  background-color: #fef2f2;
-  color: #991b1b;
-}
-
-.treatment-status.pending {
-  background-color: #fff7ed;
-  color: #9a3412;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 /* Scrollbar styles for clients-container */
@@ -1269,5 +1280,28 @@ onMounted(() => {
 .treatment-item:hover {
   border-color: #6d28d9;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.treatment-info {
+  display: flex;
+  align-items: center;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.treatment-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.treatment-status.approved {
+  background-color: #dcfce7;
+  color: #166534;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 </style>

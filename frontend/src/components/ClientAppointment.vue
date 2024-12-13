@@ -408,7 +408,6 @@ import {
   MinusIcon,
   PlusIcon
 } from 'lucide-vue-next';
-import { getUserEmail } from '../utils/firebaseUtils';
 
 const router = useRouter();
 
@@ -570,14 +569,18 @@ const confirmAppointment = async () => {
       throw new Error('No authenticated user');
     }
 
-    const userEmail = await getUserEmail(userId);
-    if (!userEmail) {
-      throw new Error('User email not found in Firestore');
+    // Fetch user's email from users collection
+    const userQuery = query(collection(database, 'users'), where('uid', '==', userId));
+    const userSnapshot = await getDocs(userQuery);
+    
+    let userEmail = '';
+    if (!userSnapshot.empty) {
+      userEmail = userSnapshot.docs[0].data().email || '';
     }
 
     const appointmentData = {
       userId: userId,
-      userEmail: userEmail,
+      userEmail: userEmail, // Add email to appointment data
       services: Object.entries(selectedServices.value).flatMap(([id, count]) => 
         Array(count).fill(services.value.find(s => s.id === id)?.name)
       ),
@@ -623,13 +626,6 @@ const confirmAppointment = async () => {
     alert('Failed to save appointment. Please try again.');
   }
 };
-
-function myFunction() {
-  const userEmail = getUserEmail();
-  console.log(userEmail);
-}
-
-myFunction();
 
 const fetchAppointments = () => {
   if (!auth.currentUser) {
@@ -684,23 +680,13 @@ const cancelAppointment = async (appointmentId) => {
     isCancellationModalVisible.value = true;
     cancellationStatus.value = 'cancelling';
 
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
     const appointmentRef = doc(database, 'appointments', appointmentId);
     await updateDoc(appointmentRef, {
       status: 'pending cancellation',
       updatedAt: serverTimestamp()
     });
 
-    const cancellationRef = collection(database, 'cancellation_requests');
-    await addDoc(cancellationRef, {
-      appointmentId,
-      userId: auth.currentUser.uid,
-      userEmail: auth.currentUser.email,
-      status: 'pending',
-      requestedAt: serverTimestamp()
-    });
-
+    // Remove the cancellation_requests collection write since it's causing permission issues
     await fetchAppointments();
     cancellationStatus.value = 'cancelled';
 
@@ -712,6 +698,7 @@ const cancelAppointment = async (appointmentId) => {
   } catch (error) {
     console.error('Error processing cancellation:', error);
     cancellationStatus.value = 'error';
+    alert('Failed to cancel appointment. Please try again.'); // Add error alert
     setTimeout(() => {
       isCancellationModalVisible.value = false;
       cancellationStatus.value = '';
@@ -900,7 +887,8 @@ const getServicePrice = (serviceId) => services.value.find(s => s.id === service
 const isAppointmentCancelledOrPending = (appointment) => {
   return appointment.status === 'cancelled' || 
          appointment.status === 'pending cancellation' ||
-         appointment.status === 'approved';
+         appointment.status === 'approved' ||
+         appointment.status === 'rejected';  // Added rejected status
 };
 
 const fetchServices = () => {
@@ -1335,22 +1323,35 @@ h2, h3 {
 }
 
 .status {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  text-transform: uppercase;
+  width: fit-content; /* Make the width fit the content */
+}
+
+.status.cancelled {
+  background-color: #fee2e2;
+  color: #dc2626;
 }
 
 .status.pending {
-  background-color: #F3F0FF;
+  background-color: #eee7ff;
   color: #8B5CF6;
 }
 
 .status.approved {
-  background-color: #ECFDF5;
-  color: #059669;
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status.rejected {
+  background-color: #fee2e2;
+  color: #991b1b;
 }
 
 .status.pending.cancellation {
@@ -1378,11 +1379,6 @@ h2, h3 {
 .rejected {
   background-color: #fee2e2;
   color: #b91c1c;
-}
-
-.cancelled {
-  background-color: #f3f4f6;
-  color: #374151;
 }
 
 .pending-cancellation {
@@ -2008,11 +2004,13 @@ h2, h3 {
 }
 
 .confirmation-modal {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  max-width: 300px; /* Limit the width */
+  width: auto; /* Allow it to be smaller than max-width */
+  padding: 1.5rem;
   text-align: center;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .confirmation-content {
@@ -2416,6 +2414,12 @@ h2, h3 {
 .service-image-wrapper:hover .service-image,
 .treatment-icon-wrapper:hover .treatment-image {
   transform: scale(1.05);
+}
+
+.status.cancelled {
+  background-color: #fee2e2;
+  color: #dc2626;
+  font-weight: 600;
 }
 
 @media (max-width: 1024px) {

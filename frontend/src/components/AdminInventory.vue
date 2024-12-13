@@ -71,7 +71,6 @@
       </div>
     </div>
 
-
     <!-- Enhanced Search Controls -->
     <div class="admininventory-search-section">
       <div class="admininventory-search-container">
@@ -102,7 +101,6 @@
         </button>
       </div>
     </div>
-
 
     <!-- Improved Inventory Table -->
     <div class="admininventory-inventory-table">
@@ -141,6 +139,7 @@
               <tr>
                 <th>Product Information</th>
                 <th>Category</th>
+                <th>Treatment</th>
                 <th>Price</th>
                 <th>Stock Level</th>
               </tr>
@@ -162,6 +161,26 @@
                 <td class="admininventory-table-cell">
                   <span class="admininventory-category-tag" :class="getCategoryColor(product.category)">
                     {{ product.category }}
+                  </span>
+                </td>
+                <td class="admininventory-table-cell">
+                  <div class="admininventory-treatment-wrapper" v-if="product.treatments && product.treatments.length > 0">
+                    <span 
+                      class="admininventory-treatment-tag" 
+                      :class="getTreatmentColor(getTreatmentName(product.treatments[0]))"
+                      v-tooltip="product.treatments.length > 1 ? {
+                        content: product.treatments.slice(1).map(id => getTreatmentName(id)).join(', '),
+                        placement: 'top'
+                      } : null"
+                    >
+                      {{ getTreatmentName(product.treatments[0]) }}
+                      <span v-if="product.treatments.length > 1" class="admininventory-more-indicator">
+                        +{{ product.treatments.length - 1 }}
+                      </span>
+                    </span>
+                  </div>
+                  <span v-else class="admininventory-treatment-tag admininventory-bg-gray-100 admininventory-text-gray-800">
+                    No Treatment
                   </span>
                 </td>
                 <td class="admininventory-table-cell">
@@ -200,12 +219,10 @@ import { ref, computed, onMounted } from 'vue';
 import { database } from '../firebase';
 import { collection, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
-  AlertCircleIcon, 
-  PackageIcon, 
+  AlertCircle as AlertCircleIcon, 
   Package, 
   Search, 
   RotateCcw, 
-  Loader,
   LayoutGrid,
   Coins,
   AlertTriangle,
@@ -221,6 +238,7 @@ const searchProduct = ref('');
 const reducingProductId = ref(null);
 const isReducing = ref(false);
 const showNotification = ref(false);
+const treatmentsMap = ref(new Map());
 
 const uniqueCategories = computed(() => {
   return [...new Set(inventory.value.map(item => item.category))];
@@ -264,7 +282,7 @@ const getStockLevelClass = (quantity) => {
 const getStockTextClass = (quantity) => {
   const percentage = (quantity / 100) * 100;
   if (percentage >= 60) return 'admininventory-text-green-600';
-  if (percentage >= 30) return 'admininventory-text-yellow-600';
+  if (percentage >= 30) return 'admininventorytext-yellow-600';
   return 'admininventory-text-red-600 admininventory-font-semibold';
 };
 
@@ -285,6 +303,22 @@ const getCategoryColor = (category) => {
   ];
   
   const index = category.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+  
+  return colors[index];
+};
+
+const getTreatmentColor = (treatment) => {
+  if (!treatment) return 'admininventory-bg-gray-100 admininventory-text-gray-800';
+
+  const colors = [
+    'admininventory-bg-teal-100 admininventory-text-teal-800',
+    'admininventory-bg-orange-100 admininventory-text-orange-800',
+    'admininventory-bg-cyan-100 admininventory-text-cyan-800',
+    'admininventory-bg-lime-100 admininventory-text-lime-800',
+    'admininventory-bg-fuchsia-100 admininventory-text-fuchsia-800',
+  ];
+  
+  const index = treatment.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
   
   return colors[index];
 };
@@ -323,6 +357,11 @@ const fetchInventory = async () => {
   loading.value = true;
   error.value = null;
   try {
+    const treatmentsSnapshot = await getDocs(collection(database, 'treatments'));
+    treatmentsMap.value = new Map(
+      treatmentsSnapshot.docs.map(doc => [doc.id, doc.data().name])
+    );
+
     const querySnapshot = await getDocs(collection(database, 'products'));
     inventory.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     inventory.value.sort((a, b) => a.name.localeCompare(b.name));
@@ -332,6 +371,10 @@ const fetchInventory = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const getTreatmentName = (treatmentId) => {
+  return treatmentsMap.value.get(treatmentId) || 'Unknown Treatment';
 };
 
 const setupAppointmentListener = () => {
@@ -451,6 +494,22 @@ onMounted(() => {
   fetchInventory();
   setupAppointmentListener();
 });
+
+const vTooltip = {
+  mounted(el, binding) {
+    if (binding.value) {
+      el.setAttribute('data-tooltip', binding.value.content);
+    }
+  },
+  updated(el, binding) {
+    if (binding.value) {
+      el.setAttribute('data-tooltip', binding.value.content);
+    }
+  }
+};
+
+// app.directive('tooltip', vTooltip);
+
 </script>
 
 <style scoped>
@@ -739,6 +798,16 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* Enhanced Treatment Tag */
+.admininventory-treatment-tag {
+  display: inline-flex;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 /* Enhanced Price Cell */
 .admininventory-price-cell {
   font-feature-settings: "tnum";
@@ -777,8 +846,8 @@ onMounted(() => {
   font-weight: 500;
   min-width: 2rem;
   text-align: right;
-  color: #64748b; /* Updated color */
-  font-size: 0.875rem; /* Updated font size */
+  color: #64748b;
+  font-size: 0.875rem;
 }
 
 /* Responsive Design */
@@ -816,7 +885,7 @@ onMounted(() => {
 .admininventory-bg-yellow-500 { background-color: #f59e0b; }
 .admininventory-bg-red-500 { background-color: #ef4444; }
 .admininventory-text-green-600 { color: #059669; }
-.admininventory-text-yellow-600 { color: #d97706; }
+.admininventorytext-yellow-600 { color: #d97706; }
 .admininventory-text-red-600 { color: #dc2626; }
 .admininventory-bg-purple-100 { background-color: #f3e8ff; }
 .admininventory-text-purple-800 { color: #6b21a8; }
@@ -832,8 +901,20 @@ onMounted(() => {
 .admininventory-text-indigo-800 { color: #3b1e70; }
 .admininventory-bg-pink-100 { background-color: #fff1f2; }
 .admininventory-text-pink-800 { color: #a8193f; }
+.admininventory-bg-teal-100 { background-color: #ccfbf1; }
+.admininventory-text-teal-800 { color: #115e59; }
+.admininventory-bg-orange-100 { background-color: #ffedd5; }
+.admininventory-text-orange-800 { color: #9a3412; }
+.admininventory-bg-cyan-100 { background-color: #cffafe; }
+.admininventory-text-cyan-800 { color: #155e75; }
+.admininventory-bg-lime-100 { background-color: #ecfccb; }
+.admininventory-text-lime-800 { color: #3f6212; }
+.admininventory-bg-fuchsia-100 { background-color: #fae8ff; }
+.admininventory-text-fuchsia-800 { color: #86198f; }
+.admininventory-bg-gray-100 { background-color: #f3f4f6; }
+.admininventory-text-gray-800 { color: #1f2937; }
 
-/* Add these new loading state styles */
+/* Loading State Styles */
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -880,8 +961,9 @@ onMounted(() => {
 
 /* Added animation styles */
 @keyframes stockReduction {
-    0% {
-    transform: scaleX(1);    opacity: 1;
+  0% {
+    transform: scaleX(1);
+    opacity: 1;
   }
   50% {
     transform: scaleX(0.95);
@@ -894,7 +976,7 @@ onMounted(() => {
 }
 
 .stock-reducing {
-  animation: stockReduction 1sease-in-out infinite;
+  animation: stockReduction 1s ease-in-out infinite;
 }
 
 .admininventory-low-stock-section {
@@ -1019,6 +1101,51 @@ onMounted(() => {
 .admininventory-empty-subtext {
   font-size: 0.875rem;
   color: #64748b;
+}
+
+.admininventory-treatment-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.admininventory-more-indicator {
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+[v-tooltip] {
+  position: relative;
+  cursor: pointer;
+}
+
+[v-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 0.75rem;
+  background-color: #1e293b;
+  color: white;
+  font-size: 0.75rem;
+  border-radius: 0.375rem;
+  white-space: nowrap;
+  z-index: 50;
+  margin-bottom: 0.5rem;
+}
+
+[v-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0.25rem;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
+  margin-bottom: 0.25rem;
 }
 </style>
 

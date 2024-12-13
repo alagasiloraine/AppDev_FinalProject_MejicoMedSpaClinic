@@ -215,9 +215,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { database } from '../firebase';
-import { collection, getDocs, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
+import { 
+  collection, 
+  getDocs, 
+  updateDoc, 
+  doc, 
+  Timestamp, 
+  getDoc, 
+  increment, 
+  onSnapshot,
+  query,
+  where,
+  writeBatch
+} from 'firebase/firestore';
+import { auth } from '../firebase';
 import { 
   Users as UsersIcon, 
   Calendar as CalendarIcon, 
@@ -244,53 +257,139 @@ const searchMonth = ref('');
 const searchTreatment = ref('');
 const sortOption = ref('latest');
 
-const fetchAppointments = async () => {
+const fetchAppointments = () => {
+  if (!auth.currentUser) {
+    console.log('No authenticated user');
+    return;
+  }
+
   loading.value = true;
   error.value = null;
-  try {
-    const querySnapshot = await getDocs(collection(database, 'appointments'));
-    const appointmentsData = [];
+  
+  const appointmentsRef = collection(database, 'appointments');
+  
+  // Set up real-time listener
+  const unsubscribe = onSnapshot(appointmentsRef, async (snapshot) => {
+    try {
+      const appointmentsData = [];
+      
+      for (const appointmentDoc of snapshot.docs) {
+        const data = appointmentDoc.data();
+        const userDocRef = doc(database, 'users', data.userId);
+        const userDoc = await getDoc(userDocRef);
+        const userData = userDoc.data();
 
-    for (const appointmentDoc of querySnapshot.docs) {
-      const data = appointmentDoc.data();
-      const userDocRef = doc(database, 'users', data.userId);
-      const userDoc = await getDoc(userDocRef);
-      const userData = userDoc.data();
+        appointmentsData.push({
+          id: appointmentDoc.id,
+          ...data,
+          date: data.date instanceof Timestamp ? data.date : Timestamp.fromDate(new Date(data.date)),
+          createdAt: data.createdAt || Timestamp.fromDate(new Date()),
+          status: data.status || 'pending',
+          clientName: userData ? `${userData.firstName} ${userData.lastName}` : 'Unknown Client',
+          userEmail: userData ? userData.email : 'Unknown Email',
+          services: data.services || [data.service]
+        });
+      }
 
-      appointmentsData.push({
-        id: appointmentDoc.id,
-        ...data,
-        date: data.date instanceof Timestamp ? data.date : Timestamp.fromDate(new Date(data.date)),
-        createdAt: data.createdAt || Timestamp.fromDate(new Date()), // Add createdAt
-        status: data.status || 'pending',
-        clientName: userData ? `${userData.firstName} ${userData.lastName}` : 'Unknown Client',
-        userEmail: userData ? userData.email : 'Unknown Email',
-        services: data.services || [data.service]
-      });
+      appointmentsData.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
+      appointments.value = appointmentsData;
+      loading.value = false;
+    } catch (err) {
+      console.error("Error processing appointments:", err);
+      error.value = 'Failed to process appointments. Please try again later.';
+      loading.value = false;
     }
-
-    appointmentsData.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate()); // Change from date-based sort to createdAt-based sort
-    appointments.value = appointmentsData;
-  } catch (err) {
-    console.error("Error fetching appointments:", err);
-    error.value = 'Failed to fetch appointments. Please try again later.';
-  } finally {
+  }, (err) => {
+    console.error("Error in real-time appointments:", err);
+    error.value = 'Error loading appointments';
     loading.value = false;
-  }
+  });
+
+  // Clean up listener on component unmount
+  onUnmounted(() => {
+    unsubscribe();
+  });
 };
+
 
 const approveAppointment = async (appointment) => {
   try {
-    await updateDoc(doc(database, 'appointments', appointment.id), {
-      status: 'approved'
+    // If the appointment is pending cancellation, mark it as cancelled instead of approved
+    const newStatus = appointment.status === 'pending cancellation' ? 'cancelled' : 'approved';
+    
+    const appointmentRef = doc(database, 'appointments', appointment.id);
+    const batch = writeBatch(database);
+
+    batch.update(appointmentRef, {
+      status: newStatus
     });
-    appointment.status = 'approved';
+
+    // Only decrease product quantity if the appointment is being approved (not cancelled)
+    if (newStatus === 'approved' && appointment.treatments && !appointment.stockReduced) {
+      const treatmentsData = appointment.treatments;
+      
+      // Create a map to store treatment reductions
+      const treatmentReductions = new Map();
+
+      // First, collect all treatment reductions
+      for (const [serviceId, serviceData] of Object.entries(treatmentsData)) {
+        if (serviceData && typeof serviceData === 'object') {
+          const serviceQuantity = serviceData.quantity || 1;
+          
+          for (const [treatmentId, treatmentQuantity] of Object.entries(serviceData)) {
+            if (treatmentId !== 'total' && treatmentId !== 'quantity') {
+              // Add to treatment reductions
+              const currentReduction = treatmentReductions.get(treatmentId) || 0;
+              const newReduction = Number(treatmentQuantity) * serviceQuantity;
+              treatmentReductions.set(treatmentId, currentReduction + newReduction);
+            }
+          }
+        }
+      }
+
+      console.log('Treatment reductions:', Object.fromEntries(treatmentReductions));
+
+      // Now process each treatment and find its associated products
+      for (const [treatmentId, reductionAmount] of treatmentReductions) {
+        // Find all products that use this treatment
+        const productsRef = collection(database, 'products');
+        const productsQuery = query(productsRef, where('treatments', 'array-contains', treatmentId));
+        const productsSnapshot = await getDocs(productsQuery);
+
+        // Update each product's quantity
+        for (const productDoc of productsSnapshot.docs) {
+          const productRef = doc(database, 'products', productDoc.id);
+          batch.update(productRef, {
+            quantity: increment(-reductionAmount),
+            updatedAt: Timestamp.now()
+          });
+
+          console.log(`Will update product ${productDoc.id} quantity (reduction: ${reductionAmount})`);
+        }
+      }
+
+      // Mark the appointment as stock reduced
+      batch.update(appointmentRef, {
+        stockReduced: true,
+        stockReducedAt: Timestamp.now()
+      });
+    }
+
+    // Commit all changes in one atomic operation
+    await batch.commit();
+
+    // Update the local state
+    appointment.status = newStatus;
     appointments.value = [...appointments.value];
+
+    console.log('Successfully processed appointment:', appointment.id);
+
   } catch (err) {
-    console.error('Error approving appointment:', err);
-    error.value = 'Failed to approve appointment. Please try again later.';
+    console.error('Error updating appointment:', err);
+    error.value = 'Failed to update appointment status. Please try again later.';
   }
 };
+
 
 const declineAppointment = async (appointment) => {
   try {
@@ -916,8 +1015,7 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   color: #374151;
-  background: none;
-  border: none;
+  background: none;  border: none;
   cursor: pointer;
   transition: all 0.2s;
 }

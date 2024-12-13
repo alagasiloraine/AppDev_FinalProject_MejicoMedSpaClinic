@@ -95,11 +95,19 @@
                 <input
                   id="password"
                   v-model="password"
-                  type="password"
+                  :type="showPassword ? 'text' : 'password'"
                   required
                   class="form-input"
                   placeholder="••••••••"
                 />
+                <button 
+                  type="button"
+                  class="password-toggle"
+                  @click="showPassword = !showPassword"
+                >
+                  <Eye v-if="!showPassword" class="icon" />
+                  <EyeOff v-else class="icon" />
+                </button>
               </div>
             </div>
 
@@ -112,11 +120,19 @@
                 <input
                   id="confirmPassword"
                   v-model="confirmPassword"
-                  type="password"
+                  :type="showConfirmPassword ? 'text' : 'password'"
                   required
                   class="form-input"
                   placeholder="••••••••"
                 />
+                <button 
+                  type="button"
+                  class="password-toggle"
+                  @click="showConfirmPassword = !showConfirmPassword"
+                >
+                  <Eye v-if="!showConfirmPassword" class="icon" />
+                  <EyeOff v-else class="icon" />
+                </button>
               </div>
             </div>
           </div>
@@ -150,7 +166,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Mail, Lock, User, ArrowLeft } from 'lucide-vue-next';
+import { Mail, Lock, User, ArrowLeft, Eye, EyeOff } from 'lucide-vue-next';
 import { register, resendEmailVerification } from '../services/authService';
 
 const firstName = ref('');
@@ -164,6 +180,8 @@ const isError = ref(false);
 const showPopup = ref(false);
 const isLoading = ref(false);
 const router = useRouter();
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 
 const displayPopup = (msg, error = false, duration = 3000) => {
   popupMessage.value = msg;
@@ -469,4 +487,24 @@ const goToLandingPage = () => {
 .fade-enter, .fade-leave-to {
   opacity: 0;
 }
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #b0b0b0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle:hover {
+  color: #4a399c;
+}
 </style>
+
